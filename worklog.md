@@ -1,73 +1,92 @@
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Plan and architect GangNiaga AI OS application
+Task: Update types and store for 21-section professional business proposal structure
 
 Work Log:
-- Analyzed the PRD document for GangNiaga AI OS
-- Planned the application architecture and module structure
-- Identified all 16 modules from the PRD
-- Designed the database schema for core entities
-- Planned the component architecture with sidebar navigation
-- Identified technology stack: Next.js 16, Prisma/SQLite, shadcn/ui, Recharts, Zustand, framer-motion
+- Added ProposalType: bank_loan, government_grant, angel_investor, venture_capital, sme_financing, corporate_partnership
+- Added ProposalSectionKey with 21 section keys
+- Added ProposalSections interface with all 21 optional string fields
+- Updated BusinessPlanData to include proposalType, industry fields
+- Added UseOfFundsItem and CompetitorRow interfaces
+- Updated store KPIs to include DSCR (1.45x) with ratio unit
+- Updated store plans with 3 proposal types (bank_loan, venture_capital, government_grant)
+- Bank loan proposal includes all 21 sections with comprehensive Malaysian/ASEAN content
+- Changed all currency references from $ to RM (Malaysian Ringgit)
 
 Stage Summary:
-- Architecture planned with 8 main modules: Dashboard, Business Plans, Financials, Agents, Workflows, Memory, Reports, Settings
-- AI Copilot as a floating side panel
-- Zustand store for state management with mock data
-- Database schema with 10 models: User, Organization, BusinessPlan, Forecast, AgentSession, AgentTask, AgentMemory, WorkflowRun, KPIData, Report
+- Types fully support 21-section professional business proposal structure
+- 6 proposal types defined with distinct focus areas
+- Store includes rich mock data with bank loan DSCR metrics
 
 ---
 Task ID: 2
-Agent: Main Agent
-Task: Set up Prisma database schema
+Agent: Subagent
+Task: Upgrade Business Plans module to professional 21-section proposal structure
 
 Work Log:
-- Created comprehensive Prisma schema with 10 models
-- Pushed schema to SQLite database
-- Generated Prisma Client
+- Created SECTION_META with all 21 sections grouped into 6 logical groups
+- Created PROPOSAL_TYPE_CONFIG with 6 proposal types, each with color, icon, focus hint
+- Redesigned left panel with proposal type badges and X/21 progress
+- Redesigned right panel with grouped section tabs
+- Added AI generation via /api/business-plan with proposal-type-aware prompts
+- Added New Proposal dialog with proposal type selector
 
 Stage Summary:
-- All database models created and synced
-- Schema includes: User, Organization, BusinessPlan, Forecast, AgentSession, AgentTask, AgentMemory, WorkflowRun, KPIData, Report
+- Business Plans module now supports 21-section professional proposals
+- 6 proposal types with distinct focus areas (bank, grant, investor, VC, SME, corporate)
+- Malaysian/ASEAN business context (RM currency, SSM registration, BNM, MDEC)
+- AI generation is proposal-type-aware
 
 ---
-Task ID: 3-9
-Agent: Subagents
-Task: Build all module components
+Task ID: 3
+Agent: Subagent
+Task: Update Financials module with DSCR and bank-focused metrics
 
 Work Log:
-- Dashboard module: KPI cards, revenue/expense charts, expense breakdown donut, AI insights
-- Business Plans module: plan list, section editor, AI rewrite, new plan dialog
-- Financials module: 5 tabs (Overview, Revenue, Expenses, Statements, Forecast Advisor), interactive charts
-- Agents module: agent list with status indicators, task queue, agent detail view
-- Workflows module: active workflows, workflow builder, execution history
-- Memory module: memory grid, type filtering, search, add/detail dialogs
-- Reports module: report grid, type filtering, generate report dialog
-- Settings module: 6 tabs (Profile, Organization, Security, Appearance, Integrations, Notifications)
+- Added DSCR card to Overview tab (1.45x with emerald color coding)
+- Added Break-even Point card (Q3 2025)
+- Added new Bank Metrics tab with DSCR Calculator, Collateral Coverage, Cash Flow Adequacy, Bank Approval Readiness checklist
+- Added DSCR rows to P&L and Cash Flow sub-tabs
+- Added bank-specific insights to Forecast Advisor tab
 
 Stage Summary:
-- All 8 main modules built with comprehensive functionality
-- AI Copilot chat panel with LLM integration
-- All modules use shadcn/ui components, Recharts for charts, framer-motion for animations
-- Color scheme: emerald/teal/amber/cyan (no blue/indigo)
+- Financials module now includes bank-loan-critical metrics (DSCR, collateral, cash flow)
+- Bank Approval Readiness checklist shows criteria status
+- DSCR gauge visualization with 4 color zones
 
 ---
-Task ID: 10-14
-Agent: Main Agent
-Task: Build layout, API routes, and main page
+Task ID: 4
+Agent: Subagent
+Task: Update Business Plan API route with comprehensive 21-section prompts
 
 Work Log:
-- Created Sidebar component with animated navigation
-- Created Header component with theme toggle, notifications, user menu
-- Created CopilotPanel component with AI chat interface
-- Created main page.tsx orchestrating all modules
-- Created 6 API routes: /api/chat, /api/business-plan, /api/forecast, /api/dashboard, /api/reports, /api/agents
-- All API routes use z-ai-web-dev-sdk for AI features
-- Generated project logo with AI image generation
-- Lint check passes cleanly
+- Created proposal-type-aware prompt system for all 21 sections
+- Bank loan: conservative tone, DSCR focus, repayment capability
+- Government grant: social impact, Bumiputera agenda, job creation
+- VC: growth, scalability, technology moat
+- Malaysian/ASEAN context throughout (RM, SSM, MDEC, MIDA, PDPA)
+- Input validation for section and proposalType
 
 Stage Summary:
-- Complete application built with 8 modules + AI Copilot
-- All API routes functional with LLM integration
-- Clean lint, no errors
+- API generates proposal-type-specific content for all 21 sections
+- Malaysian business context integrated
+- Bank loan content includes DSCR calculations and conservative projections
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Update Dashboard with bank-friendly metrics
+
+Work Log:
+- Added Shield icon for DSCR
+- Added DSCR: Shield to kpiIcons mapping
+- Fixed isPositive logic for Burn Rate and DSCR
+- Updated AI Insights with DSCR and break-even insights
+- Changed all $ to RM currency formatting
+- Added ratio unit support (1.45x format)
+
+Stage Summary:
+- Dashboard displays DSCR KPI with proper formatting
+- All currency shows RM (Malaysian Ringgit)
+- AI Insights include bank-loan-relevant insights

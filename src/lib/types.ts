@@ -9,6 +9,14 @@ export type ModuleId =
   | 'settings'
   | 'copilot';
 
+export type ProposalType = 
+  | 'bank_loan' 
+  | 'government_grant' 
+  | 'angel_investor' 
+  | 'venture_capital' 
+  | 'sme_financing' 
+  | 'corporate_partnership';
+
 export interface KPIData {
   metric: string;
   value: number;
@@ -74,21 +82,78 @@ export interface MemoryEntry {
   createdAt: string;
 }
 
+// ── Professional 21-Section Business Proposal Structure ──
+
+export type ProposalSectionKey =
+  | 'coverPage'
+  | 'executiveSummary'
+  | 'companyOverview'
+  | 'problemStatement'
+  | 'solutionProduct'
+  | 'marketAnalysis'
+  | 'industryResearch'
+  | 'competitorAnalysis'
+  | 'businessModel'
+  | 'revenueStreams'
+  | 'goToMarketStrategy'
+  | 'operationsPlan'
+  | 'technologySystem'
+  | 'managementTeam'
+  | 'financialForecast'
+  | 'fundingRequirement'
+  | 'useOfFunds'
+  | 'riskAnalysis'
+  | 'swotAnalysis'
+  | 'exitStrategy'
+  | 'appendices';
+
+export interface ProposalSections {
+  coverPage?: string;
+  executiveSummary?: string;
+  companyOverview?: string;
+  problemStatement?: string;
+  solutionProduct?: string;
+  marketAnalysis?: string;
+  industryResearch?: string;
+  competitorAnalysis?: string;
+  businessModel?: string;
+  revenueStreams?: string;
+  goToMarketStrategy?: string;
+  operationsPlan?: string;
+  technologySystem?: string;
+  managementTeam?: string;
+  financialForecast?: string;
+  fundingRequirement?: string;
+  useOfFunds?: string;
+  riskAnalysis?: string;
+  swotAnalysis?: string;
+  exitStrategy?: string;
+  appendices?: string;
+}
+
 export interface BusinessPlanData {
   id: string;
   title: string;
   status: 'draft' | 'in_progress' | 'completed' | 'archived';
-  sections: {
-    executiveSummary?: string;
-    marketAnalysis?: string;
-    swotAnalysis?: string;
-    competitorAnalysis?: string;
-    financialPlan?: string;
-    riskAnalysis?: string;
-    recommendations?: string;
-  };
+  proposalType: ProposalType;
+  industry: string;
+  sections: ProposalSections;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UseOfFundsItem {
+  category: string;
+  amount: number;
+  percentage: number;
+  description: string;
+}
+
+export interface CompetitorRow {
+  name: string;
+  strength: string;
+  weakness: string;
+  marketShare?: string;
 }
 
 export interface ReportData {

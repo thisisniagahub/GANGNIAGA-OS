@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
-import type { BusinessPlanData } from '@/lib/types';
+import type { BusinessPlanData, ProposalType, ProposalSectionKey } from '@/lib/types';
 
 // shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 
 // Lucide
 import {
@@ -48,113 +49,169 @@ import {
   Lightbulb,
   Users,
   Loader2,
+  Building2,
+  Rocket,
+  Search,
+  DollarSign,
+  Cpu,
+  UserCheck,
+  Banknote,
+  Wallet,
+  AlertTriangle,
+  ArrowRight,
+  Map,
+  LayoutGrid,
+  Briefcase,
+  Globe,
+  Code,
+  UsersRound,
+  Scale,
+  LogOut,
+  Paperclip,
 } from 'lucide-react';
 
-// ── Types & Constants ──────────────────────────────────────────────
+// ── Section Metadata ────────────────────────────────────────────────
 
-type SectionKey = keyof NonNullable<BusinessPlanData['sections']>;
+type SectionGroup = 'overview' | 'product' | 'business' | 'technical' | 'financial' | 'strategy';
 
-const SECTION_META: Record<
-  SectionKey,
-  { label: string; icon: React.ElementType; description: string }
-> = {
-  executiveSummary: {
-    label: 'Executive Summary',
-    icon: BookOpen,
-    description: 'High-level overview of your business plan',
-  },
-  marketAnalysis: {
-    label: 'Market Analysis',
-    icon: Target,
-    description: 'Market size, trends, and opportunities',
-  },
-  swotAnalysis: {
-    label: 'SWOT',
-    icon: PieChart,
-    description: 'Strengths, Weaknesses, Opportunities, Threats',
-  },
-  competitorAnalysis: {
-    label: 'Competitor Analysis',
-    icon: Users,
-    description: 'Competitive landscape and positioning',
-  },
-  financialPlan: {
-    label: 'Financial Plan',
-    icon: TrendingUp,
-    description: 'Revenue projections and unit economics',
-  },
-  riskAnalysis: {
-    label: 'Risk Analysis',
-    icon: Shield,
-    description: 'Key risks and mitigation strategies',
-  },
-  recommendations: {
-    label: 'Recommendations',
-    icon: Lightbulb,
-    description: 'Actionable next steps and priorities',
-  },
+interface SectionMeta {
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  group: SectionGroup;
+}
+
+const SECTION_META: Record<ProposalSectionKey, SectionMeta> = {
+  coverPage: { label: 'Cover Page', icon: FileText, description: 'Professional cover with company details', group: 'overview' },
+  executiveSummary: { label: 'Executive Summary', icon: BookOpen, description: 'Critical — investor decides in 2-5 minutes', group: 'overview' },
+  companyOverview: { label: 'Company Overview', icon: Building2, description: 'Background, registration, ownership, mission, vision', group: 'overview' },
+  problemStatement: { label: 'Problem Statement', icon: AlertTriangle, description: 'Clear problem with specific data points', group: 'overview' },
+  solutionProduct: { label: 'Solution / Product', icon: Rocket, description: 'Product, differentiation, value proposition', group: 'product' },
+  marketAnalysis: { label: 'Market Analysis', icon: Target, description: 'TAM, SAM, SOM with specific numbers', group: 'product' },
+  industryResearch: { label: 'Industry Research', icon: Search, description: 'Industry trends, drivers, and outlook', group: 'product' },
+  competitorAnalysis: { label: 'Competitor Analysis', icon: Users, description: 'Competitive landscape with comparison table', group: 'product' },
+  businessModel: { label: 'Business Model', icon: PieChart, description: 'How the company makes money', group: 'business' },
+  revenueStreams: { label: 'Revenue Streams', icon: DollarSign, description: 'Detailed revenue breakdown and unit economics', group: 'business' },
+  goToMarketStrategy: { label: 'Go-To-Market Strategy', icon: Map, description: 'Customer acquisition and distribution', group: 'business' },
+  operationsPlan: { label: 'Operations Plan', icon: LayoutGrid, description: 'Workflow, staffing, scaling strategy', group: 'business' },
+  technologySystem: { label: 'Technology / System', icon: Cpu, description: 'Architecture, AI systems, security, scalability', group: 'technical' },
+  managementTeam: { label: 'Management Team', icon: UserCheck, description: 'Founders, expertise, advisors, leadership', group: 'technical' },
+  financialForecast: { label: 'Financial Forecast', icon: TrendingUp, description: 'P&L, Cash Flow, Break-even, DSCR — CRITICAL for bank', group: 'financial' },
+  fundingRequirement: { label: 'Funding Requirement', icon: Banknote, description: 'Amount needed, why, runway impact', group: 'financial' },
+  useOfFunds: { label: 'Use of Funds', icon: Wallet, description: 'Detailed allocation table with percentages', group: 'financial' },
+  riskAnalysis: { label: 'Risk Analysis', icon: Shield, description: 'Market, financial, operational, AI, cybersecurity risks', group: 'financial' },
+  swotAnalysis: { label: 'SWOT Analysis', icon: Scale, description: 'Strengths, Weaknesses, Opportunities, Threats', group: 'strategy' },
+  exitStrategy: { label: 'Exit Strategy', icon: LogOut, description: 'Acquisition, expansion, future valuation', group: 'strategy' },
+  appendices: { label: 'Appendices', icon: Paperclip, description: 'Supporting documents and references', group: 'strategy' },
 };
 
-const SECTION_KEYS = Object.keys(SECTION_META) as SectionKey[];
+const SECTION_KEYS = Object.keys(SECTION_META) as ProposalSectionKey[];
 
-const STATUS_CONFIG: Record<
-  BusinessPlanData['status'],
-  { label: string; className: string }
-> = {
-  draft: {
-    label: 'Draft',
-    className:
-      'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
-  },
-  in_progress: {
-    label: 'In Progress',
-    className:
-      'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-800',
-  },
-  completed: {
-    label: 'Completed',
-    className:
-      'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800',
-  },
-  archived: {
-    label: 'Archived',
-    className:
-      'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700',
-  },
+const GROUP_META: Record<SectionGroup, { label: string; icon: React.ElementType; color: string }> = {
+  overview: { label: 'Overview', icon: BookOpen, color: 'emerald' },
+  product: { label: 'Product & Market', icon: Rocket, color: 'cyan' },
+  business: { label: 'Business Model', icon: PieChart, color: 'amber' },
+  technical: { label: 'Technical & Team', icon: Cpu, color: 'teal' },
+  financial: { label: 'Financial', icon: TrendingUp, color: 'rose' },
+  strategy: { label: 'Strategy', icon: Scale, color: 'orange' },
+};
+
+const GROUP_ORDER: SectionGroup[] = ['overview', 'product', 'business', 'technical', 'financial', 'strategy'];
+
+function getSectionsForGroup(group: SectionGroup): ProposalSectionKey[] {
+  return SECTION_KEYS.filter((k) => SECTION_META[k].group === group);
+}
+
+// ── Proposal Type Config ─────────────────────────────────────────────
+
+interface ProposalTypeConfig {
+  label: string;
+  color: string;
+  icon: React.ElementType;
+  focusHint: string;
+}
+
+const PROPOSAL_TYPE_CONFIG: Record<ProposalType, ProposalTypeConfig> = {
+  bank_loan: { label: 'Bank Loan', color: 'emerald', icon: Building2, focusHint: 'Focus: Cash flow, stability, repayment, DSCR, collateral' },
+  government_grant: { label: 'Government Grant', color: 'amber', icon: Building2, focusHint: 'Focus: Social impact, Bumiputera agenda, job creation, innovation' },
+  angel_investor: { label: 'Angel Investor', color: 'rose', icon: UserCheck, focusHint: 'Focus: Team, vision, early traction, market potential' },
+  venture_capital: { label: 'Venture Capital', color: 'cyan', icon: TrendingUp, focusHint: 'Focus: Growth, market size, scalability, technology moat' },
+  sme_financing: { label: 'SME Financing', color: 'teal', icon: Wallet, focusHint: 'Focus: Revenue stability, business fundamentals, manageable risk' },
+  corporate_partnership: { label: 'Corporate Partnership', color: 'orange', icon: Briefcase, focusHint: 'Focus: Mutual value, strategic alignment, integration potential' },
+};
+
+// ── Status Config ────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<BusinessPlanData['status'], { label: string; className: string }> = {
+  draft: { label: 'Draft', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800' },
+  in_progress: { label: 'In Progress', className: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-800' },
+  completed: { label: 'Completed', className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' },
+  archived: { label: 'Archived', className: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-400 dark:border-gray-700' },
 };
 
 const INDUSTRIES = [
-  'SaaS / Software',
-  'E-Commerce',
-  'FinTech',
-  'HealthTech',
-  'EdTech',
-  'AI / ML',
-  'Logistics',
-  'Real Estate',
-  'Agriculture',
-  'Retail',
-  'Manufacturing',
-  'Other',
+  'SaaS / Software', 'E-Commerce', 'FinTech', 'HealthTech', 'EdTech',
+  'AI / ML', 'Logistics', 'Real Estate', 'Agriculture', 'Retail',
+  'Manufacturing', 'Food & Beverage', 'Construction', 'Other',
 ];
 
-// ── Rich-text-like renderer ────────────────────────────────────────
+// ── Color utility ────────────────────────────────────────────────────
+
+function typeColorClasses(color: string) {
+  const map: Record<string, { bg: string; bgLight: string; text: string; border: string; bgHover: string; dot: string; gradientFrom: string; gradientTo: string }> = {
+    emerald: { bg: 'bg-emerald-600', bgLight: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800', bgHover: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/20', dot: 'bg-emerald-400', gradientFrom: 'from-emerald-400', gradientTo: 'to-teal-500' },
+    amber: { bg: 'bg-amber-600', bgLight: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800', bgHover: 'hover:bg-amber-50 dark:hover:bg-amber-950/20', dot: 'bg-amber-400', gradientFrom: 'from-amber-400', gradientTo: 'to-yellow-500' },
+    rose: { bg: 'bg-rose-600', bgLight: 'bg-rose-50 dark:bg-rose-950/30', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-200 dark:border-rose-800', bgHover: 'hover:bg-rose-50 dark:hover:bg-rose-950/20', dot: 'bg-rose-400', gradientFrom: 'from-rose-400', gradientTo: 'to-pink-500' },
+    cyan: { bg: 'bg-cyan-600', bgLight: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-700 dark:text-cyan-400', border: 'border-cyan-200 dark:border-cyan-800', bgHover: 'hover:bg-cyan-50 dark:hover:bg-cyan-950/20', dot: 'bg-cyan-400', gradientFrom: 'from-cyan-400', gradientTo: 'to-teal-500' },
+    teal: { bg: 'bg-teal-600', bgLight: 'bg-teal-50 dark:bg-teal-950/30', text: 'text-teal-700 dark:text-teal-400', border: 'border-teal-200 dark:border-teal-800', bgHover: 'hover:bg-teal-50 dark:hover:bg-teal-950/20', dot: 'bg-teal-400', gradientFrom: 'from-teal-400', gradientTo: 'to-emerald-500' },
+    orange: { bg: 'bg-orange-600', bgLight: 'bg-orange-50 dark:bg-orange-950/30', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-800', bgHover: 'hover:bg-orange-50 dark:hover:bg-orange-950/20', dot: 'bg-orange-400', gradientFrom: 'from-orange-400', gradientTo: 'to-amber-500' },
+  };
+  return map[color] || map.emerald;
+}
+
+function groupColorClasses(group: SectionGroup) {
+  const colorMap: Record<SectionGroup, string> = {
+    overview: 'emerald', product: 'cyan', business: 'amber', technical: 'teal', financial: 'rose', strategy: 'orange',
+  };
+  return typeColorClasses(colorMap[group]);
+}
+
+// ── Rich-text-like renderer ──────────────────────────────────────────
+
+function processInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(<span key={lastIndex}>{text.slice(lastIndex, match.index)}</span>);
+    }
+    parts.push(
+      <strong key={match.index} className="font-semibold text-foreground">
+        {match[1]}
+      </strong>
+    );
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(<span key={lastIndex}>{text.slice(lastIndex)}</span>);
+  }
+
+  return parts.length > 0 ? parts : text;
+}
 
 function renderRichContent(text: string) {
-  // Split by double-newline for paragraphs, then apply inline styles
   const paragraphs = text.split(/\n{2,}/);
 
   return paragraphs.map((para, pi) => {
-    // Process inline patterns within each paragraph
     const parts: React.ReactNode[] = [];
-    let remaining = para;
-
-    // Process line-by-line within a paragraph for bullet handling
-    const lines = remaining.split('\n');
+    const lines = para.split('\n');
 
     lines.forEach((line, li) => {
       if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
-        // Bullet point
         const content = line.replace(/^[-•*]\s+/, '');
         parts.push(
           <li key={`b-${pi}-${li}`} className="ml-4 flex items-start gap-2">
@@ -163,7 +220,6 @@ function renderRichContent(text: string) {
           </li>
         );
       } else if (/^\d+\.\s/.test(line)) {
-        // Numbered list
         const content = line.replace(/^\d+\.\s+/, '');
         parts.push(
           <li key={`n-${pi}-${li}`} className="ml-4 flex items-start gap-2">
@@ -191,33 +247,7 @@ function renderRichContent(text: string) {
   });
 }
 
-function processInline(text: string): React.ReactNode {
-  // Bold: **text**
-  const parts: React.ReactNode[] = [];
-  const regex = /\*\*(.+?)\*\*/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(<span key={lastIndex}>{text.slice(lastIndex, match.index)}</span>);
-    }
-    parts.push(
-      <strong key={match.index} className="font-semibold text-foreground">
-        {match[1]}
-      </strong>
-    );
-    lastIndex = regex.lastIndex;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(<span key={lastIndex}>{text.slice(lastIndex)}</span>);
-  }
-
-  return parts.length > 0 ? parts : text;
-}
-
-// ── Sub-components ─────────────────────────────────────────────────
+// ── Sub-components ───────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: BusinessPlanData['status'] }) {
   const config = STATUS_CONFIG[status];
@@ -228,17 +258,35 @@ function StatusBadge({ status }: { status: BusinessPlanData['status'] }) {
   );
 }
 
+function ProposalTypeBadge({ type, size = 'sm' }: { type: ProposalType; size?: 'sm' | 'xs' }) {
+  const cfg = PROPOSAL_TYPE_CONFIG[type];
+  const colors = typeColorClasses(cfg.color);
+  const Icon = cfg.icon;
+  const sizeClasses = size === 'xs' ? 'text-[10px] px-1.5 py-0 gap-1' : 'text-xs px-2 py-0.5 gap-1.5';
+  const iconSize = size === 'xs' ? 'h-2.5 w-2.5' : 'h-3 w-3';
+
+  return (
+    <Badge variant="outline" className={`${sizeClasses} ${colors.border} ${colors.text} ${colors.bgLight}`}>
+      <Icon className={iconSize} />
+      {cfg.label}
+    </Badge>
+  );
+}
+
 function EmptySectionPlaceholder({
   sectionKey,
   onGenerate,
   loading,
+  accentColor,
 }: {
-  sectionKey: SectionKey;
-  onGenerate: (key: SectionKey) => void;
+  sectionKey: ProposalSectionKey;
+  onGenerate: (key: ProposalSectionKey) => void;
   loading: boolean;
+  accentColor: string;
 }) {
   const meta = SECTION_META[sectionKey];
   const Icon = meta.icon;
+  const colors = typeColorClasses(accentColor);
 
   return (
     <motion.div
@@ -246,18 +294,18 @@ function EmptySectionPlaceholder({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.3 }}
-      className="flex flex-col items-center justify-center py-16 text-center"
+      className="flex flex-col items-center justify-center py-12 text-center"
     >
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/40">
-        <Icon className="h-8 w-8 text-emerald-500" />
+      <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ${colors.bgLight}`}>
+        <Icon className={`h-7 w-7 ${colors.text}`} />
       </div>
       <h3 className="mb-1 text-sm font-medium text-foreground">{meta.label}</h3>
-      <p className="mb-6 max-w-xs text-xs text-muted-foreground">{meta.description}</p>
+      <p className="mb-5 max-w-xs text-xs text-muted-foreground">{meta.description}</p>
       <Button
         size="sm"
         onClick={() => onGenerate(sectionKey)}
         disabled={loading}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+        className={`${colors.bg} hover:opacity-90 text-white gap-2`}
       >
         {loading ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -275,17 +323,23 @@ function SectionViewer({
   sectionKey,
   onRewrite,
   onGenerate,
+  onEdit,
   loading,
+  accentColor,
 }: {
   content: string | undefined;
-  sectionKey: SectionKey;
-  onRewrite: (key: SectionKey) => void;
-  onGenerate: (key: SectionKey) => void;
+  sectionKey: ProposalSectionKey;
+  onRewrite: (key: ProposalSectionKey) => void;
+  onGenerate: (key: ProposalSectionKey) => void;
+  onEdit: (key: ProposalSectionKey) => void;
   loading: boolean;
+  accentColor: string;
 }) {
   if (!content) {
-    return <EmptySectionPlaceholder sectionKey={sectionKey} onGenerate={onGenerate} loading={loading} />;
+    return <EmptySectionPlaceholder sectionKey={sectionKey} onGenerate={onGenerate} loading={loading} accentColor={accentColor} />;
   }
+
+  const colors = typeColorClasses(accentColor);
 
   return (
     <motion.div
@@ -294,29 +348,40 @@ function SectionViewer({
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.25 }}
     >
-      <Card className="border-emerald-100 bg-gradient-to-br from-white to-emerald-50/30 dark:from-card dark:to-emerald-950/10 dark:border-emerald-900/30">
+      <Card className={`border ${colors.border} bg-gradient-to-br from-white to-white/50 dark:from-card dark:to-card ${colors.bgLight.replace('bg-', 'dark:from-').replace('/30', '/5')}`}>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {React.createElement(SECTION_META[sectionKey].icon, {
-                className: 'h-4 w-4 text-emerald-600 dark:text-emerald-400',
+                className: `h-4 w-4 ${colors.text}`,
               })}
               <CardTitle className="text-sm">{SECTION_META[sectionKey].label}</CardTitle>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onRewrite(sectionKey)}
-              disabled={loading}
-              className="h-7 gap-1.5 text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
-            >
-              {loading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Sparkles className="h-3 w-3" />
-              )}
-              AI Rewrite
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(sectionKey)}
+                className={`h-7 gap-1.5 text-xs ${colors.text} ${colors.bgHover}`}
+              >
+                <Edit className="h-3 w-3" />
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onRewrite(sectionKey)}
+                disabled={loading}
+                className={`h-7 gap-1.5 text-xs ${colors.text} ${colors.bgHover}`}
+              >
+                {loading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                AI Rewrite
+              </Button>
+            </div>
           </div>
           <CardDescription className="text-xs">
             {SECTION_META[sectionKey].description}
@@ -330,62 +395,233 @@ function SectionViewer({
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────
+// ── Grouped Sections within a Tab ────────────────────────────────────
+
+function GroupedSections({
+  group,
+  planData,
+  onRewrite,
+  onGenerate,
+  onEdit,
+  editingSection,
+  editText,
+  onEditTextChange,
+  onSaveEdit,
+  onCancelEdit,
+  generatingSection,
+  accentColor,
+}: {
+  group: SectionGroup;
+  planData: BusinessPlanData;
+  onRewrite: (key: ProposalSectionKey) => void;
+  onGenerate: (key: ProposalSectionKey) => void;
+  onEdit: (key: ProposalSectionKey) => void;
+  editingSection: ProposalSectionKey | null;
+  editText: string;
+  onEditTextChange: (val: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  generatingSection: ProposalSectionKey | null;
+  accentColor: string;
+}) {
+  const sections = getSectionsForGroup(group);
+  const gMeta = GROUP_META[group];
+  const gColors = groupColorClasses(group);
+  const GIcon = gMeta.icon;
+
+  const completedInGroup = sections.filter((k) => planData.sections[k]).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 px-1">
+        <div className={`flex h-6 w-6 items-center justify-center rounded-md ${gColors.bgLight}`}>
+          <GIcon className={`h-3.5 w-3.5 ${gColors.text}`} />
+        </div>
+        <h3 className="text-sm font-semibold text-foreground">{gMeta.label}</h3>
+        <span className="text-[10px] text-muted-foreground">
+          {completedInGroup}/{sections.length} completed
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {sections.map((key) => {
+          const meta = SECTION_META[key];
+          const Icon = meta.icon;
+          const hasContent = !!planData.sections[key];
+          const isEditing = editingSection === key;
+
+          return (
+            <motion.div
+              key={key}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card className={`overflow-hidden border transition-all duration-200 ${hasContent ? gColors.border : 'border-dashed border-muted-foreground/20'}`}>
+                {isEditing ? (
+                  <CardContent className="p-4 space-y-3">
+                    <Textarea
+                      value={editText}
+                      onChange={(e) => onEditTextChange(e.target.value)}
+                      rows={10}
+                      className="text-sm resize-none"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={onCancelEdit} className="h-7 text-xs">
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={onSaveEdit} className={`h-7 gap-1.5 text-xs ${gColors.bg} text-white hover:opacity-90`}>
+                        Save Changes
+                      </Button>
+                    </div>
+                  </CardContent>
+                ) : hasContent ? (
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Icon className={`h-4 w-4 ${gColors.text}`} />
+                        <span className="text-sm font-medium">{meta.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onEdit(key)}
+                          className={`h-6 gap-1 text-[10px] ${gColors.text} ${gColors.bgHover}`}
+                        >
+                          <Edit className="h-2.5 w-2.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onRewrite(key)}
+                          disabled={generatingSection === key}
+                          className={`h-6 gap-1 text-[10px] ${gColors.text} ${gColors.bgHover}`}
+                        >
+                          {generatingSection === key ? (
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-2.5 w-2.5" />
+                          )}
+                          AI Rewrite
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm leading-relaxed text-foreground/90">
+                      {renderRichContent(planData.sections[key]!)}
+                    </div>
+                  </CardContent>
+                ) : (
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-muted-foreground/50" />
+                        <span className="text-sm text-muted-foreground">{meta.label}</span>
+                        <span className="text-[10px] text-muted-foreground/60">— {meta.description}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onGenerate(key)}
+                        disabled={generatingSection === key}
+                        className={`h-6 gap-1 text-[10px] ${gColors.text} ${gColors.bgHover}`}
+                      >
+                        {generatingSection === key ? (
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-2.5 w-2.5" />
+                        )}
+                        Generate
+                      </Button>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────────────
 
 export default function BusinessPlans() {
   const { plans, selectedPlan, setSelectedPlan } = useAppStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newIndustry, setNewIndustry] = useState('');
-  const [activeTab, setActiveTab] = useState<SectionKey>('executiveSummary');
-  const [generatingSection, setGeneratingSection] = useState<SectionKey | null>(null);
-  const [improving, setImproving] = useState(false);
-  const [editingSection, setEditingSection] = useState<SectionKey | null>(null);
+  const [newProposalType, setNewProposalType] = useState<ProposalType>('bank_loan');
+  const [activeGroup, setActiveGroup] = useState<SectionGroup>('overview');
+  const [generatingSection, setGeneratingSection] = useState<ProposalSectionKey | null>(null);
+  const [editingSection, setEditingSection] = useState<ProposalSectionKey | null>(null);
   const [editText, setEditText] = useState('');
+  const [expandedSection, setExpandedSection] = useState<ProposalSectionKey | null>(null);
 
   const selectedPlanData = plans.find((p) => p.id === selectedPlan) ?? null;
 
-  // Simulated AI generation
-  const simulateAI = useCallback(
-    (duration = 1500) =>
-      new Promise<void>((resolve) => setTimeout(resolve, duration)),
-    []
-  );
+  const accentColor = selectedPlanData
+    ? PROPOSAL_TYPE_CONFIG[selectedPlanData.proposalType].color
+    : 'emerald';
 
+  const accentColors = typeColorClasses(accentColor);
+
+  const completedSections = selectedPlanData
+    ? SECTION_KEYS.filter((k) => selectedPlanData.sections[k]).length
+    : 0;
+
+  const progressPercent = selectedPlanData
+    ? Math.round((completedSections / SECTION_KEYS.length) * 100)
+    : 0;
+
+  // AI generation handler
   const handleGenerateSection = useCallback(
-    async (key: SectionKey) => {
+    async (key: ProposalSectionKey) => {
+      if (!selectedPlanData) return;
       setGeneratingSection(key);
-      await simulateAI(2000);
-      setGeneratingSection(null);
+      try {
+        const res = await fetch('/api/business-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: selectedPlanData.title,
+            industry: selectedPlanData.industry,
+            section: key,
+            proposalType: selectedPlanData.proposalType,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.content) {
+            // Update the plan in the store
+            const updatedPlans = plans.map((p) =>
+              p.id === selectedPlanData.id
+                ? { ...p, sections: { ...p.sections, [key]: data.content }, updatedAt: new Date().toISOString().split('T')[0] }
+                : p
+            );
+            useAppStore.setState({ plans: updatedPlans });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to generate section:', err);
+      } finally {
+        setGeneratingSection(null);
+      }
     },
-    [simulateAI]
+    [selectedPlanData, plans]
   );
 
   const handleRewriteSection = useCallback(
-    async (key: SectionKey) => {
-      setGeneratingSection(key);
-      await simulateAI(1800);
-      setGeneratingSection(null);
+    async (key: ProposalSectionKey) => {
+      await handleGenerateSection(key);
     },
-    [simulateAI]
+    [handleGenerateSection]
   );
 
-  const handleAIImprove = useCallback(async () => {
-    setImproving(true);
-    await simulateAI(2500);
-    setImproving(false);
-  }, [simulateAI]);
-
-  const handleCreatePlan = useCallback(async () => {
-    if (!newTitle.trim()) return;
-    // Simulated — in a real app this would dispatch to the store
-    setDialogOpen(false);
-    setNewTitle('');
-    setNewIndustry('');
-  }, [newTitle]);
-
   const handleEditSection = useCallback(
-    (key: SectionKey) => {
+    (key: ProposalSectionKey) => {
       const content = selectedPlanData?.sections[key] ?? '';
       setEditText(content);
       setEditingSection(key);
@@ -394,395 +630,462 @@ export default function BusinessPlans() {
   );
 
   const handleSaveEdit = useCallback(() => {
-    // In a real app, this would update the store
+    if (!selectedPlanData || !editingSection) return;
+    const updatedPlans = plans.map((p) =>
+      p.id === selectedPlanData.id
+        ? { ...p, sections: { ...p.sections, [editingSection]: editText }, updatedAt: new Date().toISOString().split('T')[0] }
+        : p
+    );
+    useAppStore.setState({ plans: updatedPlans });
     setEditingSection(null);
     setEditText('');
-  }, []);
+  }, [selectedPlanData, editingSection, editText, plans]);
 
-  const completedSections = selectedPlanData
-    ? SECTION_KEYS.filter((k) => selectedPlanData.sections[k]).length
-    : 0;
+  const handleCreatePlan = useCallback(() => {
+    if (!newTitle.trim()) return;
+    const newPlan: BusinessPlanData = {
+      id: Date.now().toString(),
+      title: newTitle.trim(),
+      status: 'draft',
+      proposalType: newProposalType,
+      industry: newIndustry || 'Other',
+      sections: {},
+      createdAt: new Date().toISOString().split('T')[0],
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+    useAppStore.setState({ plans: [...plans, newPlan] });
+    setSelectedPlan(newPlan.id);
+    setDialogOpen(false);
+    setNewTitle('');
+    setNewIndustry('');
+    setNewProposalType('bank_loan');
+  }, [newTitle, newIndustry, newProposalType, plans, setSelectedPlan]);
+
+  const handleDeletePlan = useCallback(
+    (id: string) => {
+      const updatedPlans = plans.filter((p) => p.id !== id);
+      useAppStore.setState({ plans: updatedPlans });
+      if (selectedPlan === id) {
+        setSelectedPlan(null);
+      }
+    },
+    [plans, selectedPlan, setSelectedPlan]
+  );
+
+  // ── Render ──────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col lg:flex-row gap-4 lg:gap-6">
-      {/* ── Left Panel: Plan List ── */}
+    <div className="flex h-full flex-col">
+      {/* ── Top Bar ── */}
       <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.35 }}
-        className="w-full lg:w-1/3 shrink-0"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center justify-between px-1 pb-4"
       >
-        <Card className="h-full border-emerald-100/60 dark:border-emerald-900/30">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Business Plans
-              </CardTitle>
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="h-7 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    New Plan
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-emerald-500" />
-                      Create Business Plan
-                    </DialogTitle>
-                    <DialogDescription>
-                      Start a new plan from scratch or let AI generate one for you.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-4 py-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Plan Title</label>
-                      <Input
-                        placeholder="e.g. Series A Growth Strategy"
-                        value={newTitle}
-                        onChange={(e) => setNewTitle(e.target.value)}
-                        className="border-emerald-200 focus-visible:border-emerald-400 dark:border-emerald-800"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Industry</label>
-                      <Select value={newIndustry} onValueChange={setNewIndustry}>
-                        <SelectTrigger className="w-full border-emerald-200 dark:border-emerald-800">
-                          <SelectValue placeholder="Select industry" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {INDUSTRIES.map((ind) => (
-                            <SelectItem key={ind} value={ind}>
-                              {ind}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <DialogFooter className="gap-2 sm:gap-0">
-                    <DialogClose asChild>
-                      <Button variant="outline" size="sm">
-                        Cancel
-                      </Button>
-                    </DialogClose>
-                    <Button
-                      size="sm"
-                      onClick={handleCreatePlan}
-                      disabled={!newTitle.trim()}
-                      className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Generate with AI
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-
-          <CardContent className="pt-0">
-            <ScrollArea className="h-[calc(100vh-260px)] max-h-[600px]">
-              <div className="space-y-2 pr-1">
-                <AnimatePresence mode="popLayout">
-                  {plans.map((plan) => {
-                    const isSelected = plan.id === selectedPlan;
-                    const sectionCount = SECTION_KEYS.filter(
-                      (k) => plan.sections[k]
-                    ).length;
-
-                    return (
-                      <motion.div
-                        key={plan.id}
-                        layout
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <button
-                          onClick={() => setSelectedPlan(isSelected ? null : plan.id)}
-                          className={`w-full text-left rounded-xl border p-3 transition-all duration-200 group ${
-                            isSelected
-                              ? 'border-emerald-300 bg-emerald-50/80 shadow-sm dark:border-emerald-700 dark:bg-emerald-950/30'
-                              : 'border-border hover:border-emerald-200 hover:bg-emerald-50/40 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/10'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <p
-                                className={`text-sm font-medium truncate ${
-                                  isSelected
-                                    ? 'text-emerald-900 dark:text-emerald-100'
-                                    : 'text-foreground'
-                                }`}
-                              >
-                                {plan.title}
-                              </p>
-                              <div className="mt-1.5 flex items-center gap-2">
-                                <StatusBadge status={plan.status} />
-                                <span className="text-[10px] text-muted-foreground">
-                                  {sectionCount}/{SECTION_KEYS.length} sections
-                                </span>
-                              </div>
-                            </div>
-                            <ChevronRight
-                              className={`h-4 w-4 shrink-0 mt-0.5 transition-transform ${
-                                isSelected
-                                  ? 'rotate-90 text-emerald-600 dark:text-emerald-400'
-                                  : 'text-muted-foreground group-hover:text-emerald-500'
-                              }`}
-                            />
-                          </div>
-                          <p className="mt-2 text-[10px] text-muted-foreground">
-                            Updated {plan.updatedAt}
-                          </p>
-                        </button>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-
-                {plans.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <FileText className="h-10 w-10 text-muted-foreground/40 mb-3" />
-                    <p className="text-sm text-muted-foreground">No business plans yet</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">
-                      Create your first plan to get started
-                    </p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-3">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${accentColors.bgLight}`}>
+            <FileText className={`h-5 w-5 ${accentColors.text}`} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
+              Business Proposal Builder
+            </h1>
+            <p className="text-[11px] text-muted-foreground">
+              21 Sections · Professional Grade
+            </p>
+          </div>
+        </div>
+        <Badge variant="outline" className="text-[10px] gap-1 border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400 dark:bg-emerald-950/20">
+          <Sparkles className="h-3 w-3" />
+          AI Powered
+        </Badge>
       </motion.div>
 
-      {/* ── Right Panel: Plan Editor/Viewer ── */}
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.35, delay: 0.1 }}
-        className="flex-1 min-w-0"
-      >
-        {!selectedPlanData ? (
-          /* ── Empty State ── */
-          <Card className="h-full min-h-[400px] flex items-center justify-center border-dashed border-2 border-emerald-200/60 dark:border-emerald-800/40">
-            <CardContent className="text-center py-16">
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.4 }}
-              >
-                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/30">
-                  <Sparkles className="h-10 w-10 text-emerald-500" />
-                </div>
-                <h2 className="text-lg font-semibold text-foreground mb-2">
-                  Business Plan Intelligence
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-                  Select a plan from the left to view and edit, or create a new AI-generated
-                  business plan.
-                </p>
-                <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <BookOpen className="h-3.5 w-3.5" /> 7 Sections
-                  </span>
-                  <Separator orientation="vertical" className="h-3" />
-                  <span className="flex items-center gap-1">
-                    <Sparkles className="h-3.5 w-3.5" /> AI Powered
-                  </span>
-                  <Separator orientation="vertical" className="h-3" />
-                  <span className="flex items-center gap-1">
-                    <Edit className="h-3.5 w-3.5" /> Editable
-                  </span>
-                </div>
-              </motion.div>
-            </CardContent>
-          </Card>
-        ) : (
-          /* ── Plan Editor ── */
-          <Card className="h-full border-emerald-100/60 dark:border-emerald-900/30">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <CardTitle className="text-base truncate">
-                      {selectedPlanData.title}
-                    </CardTitle>
-                    <StatusBadge status={selectedPlanData.status} />
-                  </div>
-                  <CardDescription className="text-xs">
-                    {completedSections} of {SECTION_KEYS.length} sections completed
-                    &nbsp;&middot;&nbsp; Created {selectedPlanData.createdAt}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-                  >
-                    <Edit className="h-3 w-3" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
+      {/* ── Main Content ── */}
+      <div className="flex flex-1 gap-4 lg:gap-6 min-h-0">
+        {/* ── Left Panel: Plan List ── */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.35 }}
+          className="w-full lg:w-1/3 shrink-0"
+        >
+          <Card className="h-full flex flex-col border-border/60">
+            <CardHeader className="pb-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className={`h-4 w-4 ${accentColors.text}`} />
+                  Proposals
+                  <Badge variant="secondary" className="text-[10px] px-1.5">
+                    {plans.length}
+                  </Badge>
+                </CardTitle>
+                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      className={`h-7 gap-1.5 ${accentColors.bg} hover:opacity-90 text-white text-xs`}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      New Proposal
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-emerald-500" />
+                        Create New Proposal
+                      </DialogTitle>
+                      <DialogDescription>
+                        Build a professional 21-section business proposal tailored to your target audience.
+                      </DialogDescription>
+                    </DialogHeader>
 
-              {/* Progress bar */}
-              <div className="mt-2 h-1.5 w-full rounded-full bg-emerald-100 dark:bg-emerald-900/40 overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500"
-                  initial={{ width: 0 }}
-                  animate={{
-                    width: `${(completedSections / SECTION_KEYS.length) * 100}%`,
-                  }}
-                  transition={{ duration: 0.6, ease: 'easeOut' }}
-                />
+                    <div className="space-y-4 py-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Proposal Title</label>
+                        <Input
+                          placeholder="e.g. Bank Loan Proposal — RM2M Expansion"
+                          value={newTitle}
+                          onChange={(e) => setNewTitle(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Proposal Type</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(Object.entries(PROPOSAL_TYPE_CONFIG) as [ProposalType, ProposalTypeConfig][]).map(([type, cfg]) => {
+                            const TIcon = cfg.icon;
+                            const tColors = typeColorClasses(cfg.color);
+                            const isSelected = newProposalType === type;
+                            return (
+                              <button
+                                key={type}
+                                onClick={() => setNewProposalType(type)}
+                                className={`flex items-start gap-2 rounded-lg border p-2.5 text-left transition-all duration-200 ${
+                                  isSelected
+                                    ? `${tColors.border} ${tColors.bgLight} ring-1 ring-current ${tColors.text}`
+                                    : 'border-border hover:border-muted-foreground/30'
+                                }`}
+                              >
+                                <TIcon className={`h-4 w-4 mt-0.5 shrink-0 ${isSelected ? tColors.text : 'text-muted-foreground'}`} />
+                                <div className="min-w-0">
+                                  <p className={`text-xs font-medium ${isSelected ? tColors.text : 'text-foreground'}`}>
+                                    {cfg.label}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 line-clamp-2">
+                                    {cfg.focusHint}
+                                  </p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Industry</label>
+                        <Select value={newIndustry} onValueChange={setNewIndustry}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select industry" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {INDUSTRIES.map((ind) => (
+                              <SelectItem key={ind} value={ind}>
+                                {ind}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                      <DialogClose asChild>
+                        <Button variant="outline" size="sm">
+                          Cancel
+                        </Button>
+                      </DialogClose>
+                      <Button
+                        size="sm"
+                        onClick={handleCreatePlan}
+                        disabled={!newTitle.trim()}
+                        className={`gap-2 ${accentColors.bg} hover:opacity-90 text-white`}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Generate with AI
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardHeader>
 
-            <CardContent className="pt-0">
-              <Tabs
-                value={activeTab}
-                onValueChange={(v) => setActiveTab(v as SectionKey)}
-                className="w-full"
-              >
-                <ScrollArea className="w-full">
-                  <TabsList className="mb-4 w-max gap-1 bg-emerald-50/50 dark:bg-emerald-950/20">
-                    {SECTION_KEYS.map((key) => {
-                      const meta = SECTION_META[key];
-                      const Icon = meta.icon;
-                      const hasContent = !!selectedPlanData.sections[key];
+            <CardContent className="pt-0 flex-1 min-h-0">
+              <ScrollArea className="h-[calc(100vh-300px)] max-h-[600px]">
+                <div className="space-y-2 pr-1">
+                  <AnimatePresence mode="popLayout">
+                    {plans.map((plan) => {
+                      const isSelected = plan.id === selectedPlan;
+                      const sectionCount = SECTION_KEYS.filter((k) => plan.sections[k]).length;
+                      const planCfg = PROPOSAL_TYPE_CONFIG[plan.proposalType];
+                      const planColors = typeColorClasses(planCfg.color);
+
                       return (
-                        <TabsTrigger
-                          key={key}
-                          value={key}
-                          className="gap-1.5 text-xs data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                        <motion.div
+                          key={plan.id}
+                          layout
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.2 }}
                         >
-                          <Icon className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{meta.label}</span>
-                          {hasContent && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 data-[state=active]:bg-white" />
-                          )}
-                        </TabsTrigger>
+                          <button
+                            onClick={() => setSelectedPlan(isSelected ? null : plan.id)}
+                            className={`w-full text-left rounded-xl border p-3 transition-all duration-200 group ${
+                              isSelected
+                                ? `${planColors.border} ${planColors.bgLight} shadow-sm ring-1 ring-current/20`
+                                : 'border-border hover:border-muted-foreground/30'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-sm font-medium truncate ${isSelected ? planColors.text : 'text-foreground'}`}>
+                                  {plan.title}
+                                </p>
+                                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                                  <ProposalTypeBadge type={plan.proposalType} size="xs" />
+                                  <StatusBadge status={plan.status} />
+                                </div>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                                    <motion.div
+                                      className={`h-full rounded-full ${planColors.bg}`}
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${(sectionCount / SECTION_KEYS.length) * 100}%` }}
+                                      transition={{ duration: 0.4 }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    {sectionCount}/21
+                                  </span>
+                                </div>
+                              </div>
+                              <ChevronRight
+                                className={`h-4 w-4 shrink-0 mt-0.5 transition-transform ${
+                                  isSelected
+                                    ? `rotate-90 ${planColors.text}`
+                                    : 'text-muted-foreground group-hover:text-foreground'
+                                }`}
+                              />
+                            </div>
+                          </button>
+                        </motion.div>
                       );
                     })}
-                  </TabsList>
-                </ScrollArea>
+                  </AnimatePresence>
 
-                <AnimatePresence mode="wait">
-                  {SECTION_KEYS.map((key) => (
-                    <TabsContent key={key} value={key} className="mt-0">
-                      {editingSection === key ? (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="space-y-3"
-                        >
-                          <Textarea
-                            value={editText}
-                            onChange={(e) => setEditText(e.target.value)}
-                            rows={12}
-                            className="text-sm resize-none border-emerald-200 focus-visible:border-emerald-400 dark:border-emerald-800"
-                          />
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingSection(null)}
-                              className="h-8 text-xs"
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={handleSaveEdit}
-                              className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                              Save Changes
-                            </Button>
-                          </div>
-                        </motion.div>
-                      ) : (
-                        <div className="relative">
-                          <SectionViewer
-                            content={selectedPlanData.sections[key]}
-                            sectionKey={key}
-                            onRewrite={handleRewriteSection}
-                            onGenerate={handleGenerateSection}
-                            loading={generatingSection === key}
-                          />
-                          {selectedPlanData.sections[key] && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditSection(key)}
-                              className="mt-2 h-7 gap-1.5 text-xs text-muted-foreground hover:text-emerald-700 hover:bg-emerald-50 dark:hover:text-emerald-400 dark:hover:bg-emerald-950/30"
-                            >
-                              <Edit className="h-3 w-3" />
-                              Edit manually
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </TabsContent>
-                  ))}
-                </AnimatePresence>
-              </Tabs>
-
-              {/* Floating AI Improve button */}
-              <motion.div
-                className="fixed bottom-6 right-6 z-30"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
-              >
-                <Button
-                  onClick={handleAIImprove}
-                  disabled={improving}
-                  className="h-12 w-12 rounded-full shadow-lg shadow-emerald-500/25 bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
-                  size="icon"
-                >
-                  {improving ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-5 w-5" />
+                  {plans.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <FileText className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                      <p className="text-sm text-muted-foreground">No proposals yet</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">
+                        Create your first proposal to get started
+                      </p>
+                    </div>
                   )}
-                  <span className="sr-only">AI Improve</span>
-                </Button>
-                <AnimatePresence>
-                  {!improving && (
-                    <motion.span
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 4 }}
-                      className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[10px] text-background shadow-md"
-                    >
-                      AI Improve
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.div>
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
-        )}
-      </motion.div>
+        </motion.div>
+
+        {/* ── Right Panel ── */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.35, delay: 0.1 }}
+          className="flex-1 min-w-0"
+        >
+          {!selectedPlanData ? (
+            /* ── Empty State: Show all 6 proposal types ── */
+            <Card className="h-full min-h-[500px] flex items-center justify-center border-dashed border-2 border-muted-foreground/20">
+              <CardContent className="py-10 px-6 w-full max-w-2xl">
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.4 }}
+                  className="text-center mb-8"
+                >
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/30">
+                    <Sparkles className="h-8 w-8 text-emerald-500" />
+                  </div>
+                  <h2 className="text-lg font-bold text-foreground mb-2">
+                    Choose Your Proposal Type
+                  </h2>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Select a target audience to get started, or pick an existing proposal from the left.
+                    Each type emphasizes different sections and metrics.
+                  </p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(Object.entries(PROPOSAL_TYPE_CONFIG) as [ProposalType, ProposalTypeConfig][]).map(([type, cfg], i) => {
+                    const TIcon = cfg.icon;
+                    const tColors = typeColorClasses(cfg.color);
+                    return (
+                      <motion.button
+                        key={type}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: i * 0.06 }}
+                        onClick={() => {
+                          setNewProposalType(type);
+                          setDialogOpen(true);
+                        }}
+                        className={`flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 group ${tColors.border} ${tColors.bgHover} hover:shadow-md`}
+                      >
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${tColors.bgLight} group-hover:scale-110 transition-transform`}>
+                          <TIcon className={`h-5 w-5 ${tColors.text}`} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{cfg.label}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">{cfg.focusHint}</p>
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <ArrowRight className={`h-3 w-3 ${tColors.text} group-hover:translate-x-1 transition-transform`} />
+                          <span className={`text-[10px] ${tColors.text} font-medium`}>Start building</span>
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            /* ── Plan Editor with Grouped Tabs ── */
+            <Card className="h-full flex flex-col border-border/60">
+              <CardHeader className="pb-3 shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <CardTitle className="text-base truncate">{selectedPlanData.title}</CardTitle>
+                      <ProposalTypeBadge type={selectedPlanData.proposalType} />
+                      <StatusBadge status={selectedPlanData.status} />
+                    </div>
+                    <p className={`text-[10px] ${accentColors.text} mt-0.5`}>
+                      {PROPOSAL_TYPE_CONFIG[selectedPlanData.proposalType].focusHint}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => {
+                        setNewTitle(selectedPlanData.title);
+                        setNewProposalType(selectedPlanData.proposalType);
+                        setNewIndustry(selectedPlanData.industry);
+                      }}
+                    >
+                      <Edit className="h-3 w-3" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                      onClick={() => handleDeletePlan(selectedPlanData.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground">Section Progress</span>
+                    <span className={`text-[10px] font-semibold ${accentColors.text}`}>
+                      {completedSections}/21 · {progressPercent}%
+                    </span>
+                  </div>
+                  <Progress value={progressPercent} className={`h-2 ${accentColors.bgLight}`} />
+                </div>
+              </CardHeader>
+
+              <CardContent className="pt-0 flex-1 min-h-0">
+                {/* Grouped Tabs */}
+                <Tabs
+                  value={activeGroup}
+                  onValueChange={(v) => setActiveGroup(v as SectionGroup)}
+                  className="w-full flex flex-col h-full"
+                >
+                  <ScrollArea className="w-full shrink-0">
+                    <TabsList className="mb-4 w-max gap-1 bg-muted/50">
+                      {GROUP_ORDER.map((group) => {
+                        const gMeta = GROUP_META[group];
+                        const GIcon = gMeta.icon;
+                        const gColors = groupColorClasses(group);
+                        const sections = getSectionsForGroup(group);
+                        const completed = sections.filter((k) => selectedPlanData.sections[k]).length;
+
+                        return (
+                          <TabsTrigger
+                            key={group}
+                            value={group}
+                            className={`gap-1.5 text-xs data-[state=active]:${gColors.bg} data-[state=active]:text-white`}
+                          >
+                            <GIcon className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">{gMeta.label}</span>
+                            <span className="text-[10px] opacity-60">{completed}/{sections.length}</span>
+                          </TabsTrigger>
+                        );
+                      })}
+                    </TabsList>
+                  </ScrollArea>
+
+                  <ScrollArea className="flex-1 max-h-[calc(100vh-400px)]">
+                    <AnimatePresence mode="wait">
+                      {GROUP_ORDER.map((group) => (
+                        <TabsContent key={group} value={group} className="mt-0">
+                          <motion.div
+                            key={group}
+                            initial={{ opacity: 0, x: 8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -8 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <GroupedSections
+                              group={group}
+                              planData={selectedPlanData}
+                              onRewrite={handleRewriteSection}
+                              onGenerate={handleGenerateSection}
+                              onEdit={handleEditSection}
+                              editingSection={editingSection}
+                              editText={editText}
+                              onEditTextChange={setEditText}
+                              onSaveEdit={handleSaveEdit}
+                              onCancelEdit={() => {
+                                setEditingSection(null);
+                                setEditText('');
+                              }}
+                              generatingSection={generatingSection}
+                              accentColor={accentColor}
+                            />
+                          </motion.div>
+                        </TabsContent>
+                      ))}
+                    </AnimatePresence>
+                  </ScrollArea>
+                </Tabs>
+              </CardContent>
+            </Card>
+          )}
+        </motion.div>
+      </div>
     </div>
   );
 }

@@ -32,6 +32,12 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   AreaChart,
   BarChart,
   LineChart,
@@ -40,7 +46,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   Area,
   Bar,
@@ -61,6 +67,14 @@ import {
   Target,
   Zap,
   RefreshCw,
+  Landmark,
+  Shield,
+  CheckCircle2,
+  Circle,
+  Info,
+  Gauge,
+  CircleDot,
+  CircleCheck,
 } from 'lucide-react';
 
 // ─── Color Palette (emerald, amber, rose, cyan, teal) ───
@@ -97,6 +111,16 @@ function formatCurrency(value: number): string {
   return `$${value.toFixed(0)}`;
 }
 
+function formatRM(value: number): string {
+  if (Math.abs(value) >= 1_000_000) {
+    return `RM${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return `RM${(value / 1_000).toFixed(1)}K`;
+  }
+  return `RM${value.toFixed(0)}`;
+}
+
 function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
@@ -108,6 +132,28 @@ function formatFullCurrency(value: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+// ─── DSCR Helpers ───
+function getDSCRColor(dscr: number): string {
+  if (dscr < 1.0) return COLORS.rose;
+  if (dscr < 1.25) return COLORS.amber;
+  if (dscr < 2.0) return COLORS.emerald;
+  return COLORS.teal;
+}
+
+function getDSCRLabel(dscr: number): string {
+  if (dscr < 1.0) return 'Not Qualifying';
+  if (dscr < 1.25) return 'Borderline';
+  if (dscr < 2.0) return 'Healthy';
+  return 'Strong';
+}
+
+function getDSCRTailwindColor(dscr: number): string {
+  if (dscr < 1.0) return 'text-rose-500';
+  if (dscr < 1.25) return 'text-amber-500';
+  if (dscr < 2.0) return 'text-emerald-500';
+  return 'text-teal-500';
 }
 
 // ─── Animation Variants ───
@@ -151,7 +197,7 @@ const revenueBreakdown = [
   { name: 'Custom Integrations', value: 42800, color: COLORS.teal },
 ];
 
-// ─── P&L Data ───
+// ─── P&L Data (enhanced with DSCR row) ───
 const plData = [
   { label: 'Revenue', values: ['SaaS Subscriptions', '$178.5K', '62.7%'], bold: true, indent: false },
   { label: '', values: ['Professional Services', '$63.2K', '22.2%'], bold: false, indent: true },
@@ -167,6 +213,7 @@ const plData = [
   { label: 'Total Expenses', values: ['', '($187.2K)', '65.8%'], bold: true, indent: false },
   { label: 'Operating Income', values: ['', '$54.6K', '19.2%'], bold: true, indent: false },
   { label: 'Net Profit', values: ['', '$97.3K', '34.2%'], bold: true, indent: false },
+  { label: 'DSCR', values: ['Net Operating Income / Debt Obligations', '1.45x', ''], bold: true, indent: false },
 ];
 
 // ─── Balance Sheet Data ───
@@ -190,7 +237,7 @@ const balanceSheetData = [
   { label: 'Liabilities + Equity', values: ['', '$2,105K', ''], bold: true, indent: false },
 ];
 
-// ─── Cash Flow Data ───
+// ─── Cash Flow Data (enhanced with DSCR row) ───
 const cashFlowData = [
   { label: 'Operating Activities', values: ['Net Income', '$97.3K', ''], bold: true, indent: false },
   { label: '', values: ['Depreciation & Amortization', '$12.4K', ''], bold: false, indent: true },
@@ -204,6 +251,7 @@ const cashFlowData = [
   { label: '', values: ['Equity Raised', '$0', ''], bold: false, indent: true },
   { label: 'Cash from Financing', values: ['', '$0', ''], bold: true, indent: false },
   { label: 'Net Change in Cash', values: ['', '$61.0K', ''], bold: true, indent: false },
+  { label: 'DSCR', values: ['Operating Cash Flow / Debt Service', '1.45x', ''], bold: true, indent: false },
 ];
 
 // ─── Risk & Insight Data ───
@@ -273,17 +321,154 @@ const strategicRecommendations = [
   },
 ];
 
+// ─── Bank Metrics Data ───
+const dscrProjectionData = [
+  { year: 'Current', noi: 4500000, debtService: 3100000, dscr: 1.45 },
+  { year: 'Year 1 (2025)', noi: 6200000, debtService: 3100000, dscr: 2.0 },
+  { year: 'Year 2 (2026)', noi: 8900000, debtService: 3100000, dscr: 2.87 },
+];
+
+const bankApprovalChecklist = [
+  { label: 'DSCR > 1.25x', passed: true },
+  { label: 'Positive cash flow', passed: true },
+  { label: 'Break-even achieved or near', passed: true },
+  { label: '2+ years operating history', passed: false },
+  { label: 'Collateral coverage > 100%', passed: false },
+  { label: 'Revenue growth > 10% YoY', passed: true },
+];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DSCR Gauge Component
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function DSCRGauge({ value, maxValue = 3.0 }: { value: number; maxValue?: number }) {
+  const percentage = Math.min(value / maxValue, 1);
+  const angle = percentage * 180;
+  const color = getDSCRColor(value);
+
+  // Zone boundaries (in degrees from 0-180)
+  const zones = [
+    { start: 0, end: (1.0 / maxValue) * 180, color: COLORS.rose, label: '<1.0' },
+    { start: (1.0 / maxValue) * 180, end: (1.25 / maxValue) * 180, color: COLORS.amber, label: '1.0-1.25' },
+    { start: (1.25 / maxValue) * 180, end: (2.0 / maxValue) * 180, color: COLORS.emerald, label: '1.25-2.0' },
+    { start: (2.0 / maxValue) * 180, end: 180, color: COLORS.teal, label: '>2.0' },
+  ];
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg viewBox="0 0 200 120" className="w-full max-w-[280px]">
+        {/* Zone arcs */}
+        {zones.map((zone, i) => {
+          const startRad = ((zone.start - 180) * Math.PI) / 180;
+          const endRad = ((zone.end - 180) * Math.PI) / 180;
+          const x1 = 100 + 80 * Math.cos(startRad);
+          const y1 = 100 + 80 * Math.sin(startRad);
+          const x2 = 100 + 80 * Math.cos(endRad);
+          const y2 = 100 + 80 * Math.sin(endRad);
+          const largeArc = zone.end - zone.start > 180 ? 1 : 0;
+
+          return (
+            <path
+              key={i}
+              d={`M ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2}`}
+              fill="none"
+              stroke={zone.color}
+              strokeWidth="16"
+              strokeLinecap="butt"
+              opacity={0.25}
+            />
+          );
+        })}
+
+        {/* Active arc */}
+        {(() => {
+          const activeRad = ((angle - 180) * Math.PI) / 180;
+          const startRad = -Math.PI;
+          const x1 = 100 + 80 * Math.cos(startRad);
+          const y1 = 100 + 80 * Math.sin(startRad);
+          const x2 = 100 + 80 * Math.cos(activeRad);
+          const y2 = 100 + 80 * Math.sin(activeRad);
+          const largeArc = angle > 180 ? 1 : 0;
+
+          return (
+            <path
+              d={`M ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2}`}
+              fill="none"
+              stroke={color}
+              strokeWidth="16"
+              strokeLinecap="round"
+            />
+          );
+        })()}
+
+        {/* Needle */}
+        {(() => {
+          const needleRad = ((angle - 180) * Math.PI) / 180;
+          const nx = 100 + 65 * Math.cos(needleRad);
+          const ny = 100 + 65 * Math.sin(needleRad);
+          return (
+            <>
+              <line x1="100" y1="100" x2={nx} y2={ny} stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="100" cy="100" r="5" fill={color} />
+            </>
+          );
+        })()}
+
+        {/* Scale labels */}
+        <text x="20" y="110" fontSize="10" fill="hsl(var(--muted-foreground))" textAnchor="middle">0</text>
+        <text x="60" y="55" fontSize="9" fill={COLORS.rose} textAnchor="middle" fontWeight="600">1.0</text>
+        <text x="80" y="30" fontSize="9" fill={COLORS.amber} textAnchor="middle" fontWeight="600">1.25</text>
+        <text x="120" y="30" fontSize="9" fill={COLORS.emerald} textAnchor="middle" fontWeight="600">2.0</text>
+        <text x="180" y="110" fontSize="10" fill="hsl(var(--muted-foreground))" textAnchor="middle">3.0</text>
+
+        {/* Center value */}
+        <text x="100" y="88" fontSize="24" fill={color} textAnchor="middle" fontWeight="bold">
+          {value.toFixed(2)}x
+        </text>
+        <text x="100" y="102" fontSize="10" fill="hsl(var(--muted-foreground))" textAnchor="middle">
+          {getDSCRLabel(value)}
+        </text>
+      </svg>
+
+      {/* Zone legend */}
+      <div className="flex flex-wrap justify-center gap-3 mt-2">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS.rose }} />
+          <span className="text-[10px] text-muted-foreground">Not Qualifying</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS.amber }} />
+          <span className="text-[10px] text-muted-foreground">Borderline</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS.emerald }} />
+          <span className="text-[10px] text-muted-foreground">Healthy</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS.teal }} />
+          <span className="text-[10px] text-muted-foreground">Strong</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Main Component
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function FinancialsModule() {
-  const { revenueData, expenseData, forecastData } = useAppStore();
+  const { revenueData, expenseData, forecastData, kpis } = useAppStore();
   const [period, setPeriod] = useState<'6' | '12' | '24'>('12');
   const [growthRate, setGrowthRate] = useState([11]);
   const [churnRate, setChurnRate] = useState([3.2]);
   const [arpu, setArpu] = useState('149');
   const [statementTab, setStatementTab] = useState('pl');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // ─── DSCR from store ───
+  const dscrKpi = kpis.find(k => k.metric === 'DSCR');
+  const currentDSCR = dscrKpi?.value ?? 1.45;
+  const previousDSCR = dscrKpi?.previousValue ?? 1.22;
+  const targetDSCR = dscrKpi?.target ?? 1.50;
 
   // ─── Period-filtered data ───
   const filteredRevenueData = useMemo(() => {
@@ -374,7 +559,7 @@ export default function FinancialsModule() {
     setTimeout(() => setIsRefreshing(false), 1200);
   };
 
-  // ─── Summary Cards ───
+  // ─── Summary Cards (existing) ───
   const summaryCards = [
     {
       title: 'Total Revenue',
@@ -409,6 +594,9 @@ export default function FinancialsModule() {
       bgColor: COLORS.amberLight,
     },
   ];
+
+  // ─── DSCR overview card info ───
+  const dscrColor = getDSCRColor(currentDSCR);
 
   return (
     <div className="space-y-6">
@@ -449,6 +637,10 @@ export default function FinancialsModule() {
           <TabsTrigger value="expenses" className="gap-1.5 text-xs sm:text-sm">
             <PieChartIcon className="h-3.5 w-3.5" />
             Expense Analysis
+          </TabsTrigger>
+          <TabsTrigger value="bank-metrics" className="gap-1.5 text-xs sm:text-sm">
+            <Landmark className="h-3.5 w-3.5" />
+            Bank Metrics
           </TabsTrigger>
           <TabsTrigger value="statements" className="gap-1.5 text-xs sm:text-sm">
             <Calculator className="h-3.5 w-3.5" />
@@ -508,6 +700,103 @@ export default function FinancialsModule() {
                 </Card>
               </motion.div>
             ))}
+          </div>
+
+          {/* DSCR & Break-even Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <motion.div custom={4} variants={cardVariants} initial="hidden" animate="visible">
+              <Card className="relative overflow-hidden border-l-4" style={{ borderLeftColor: dscrColor }}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-muted-foreground">DSCR</p>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[260px]">
+                              <p className="font-medium text-xs mb-1">Debt Service Coverage Ratio</p>
+                              <p className="text-xs">Formula: Net Operating Income / Debt Obligations</p>
+                              <p className="text-xs mt-1">Measures ability to service debt. Banks typically require &ge;1.25x for loan approval.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-2xl font-bold" style={{ color: dscrColor }}>
+                          {currentDSCR.toFixed(2)}x
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5"
+                          style={{
+                            borderColor: dscrColor,
+                            color: dscrColor,
+                            backgroundColor: `${dscrColor}15`,
+                          }}
+                        >
+                          {getDSCRLabel(currentDSCR)}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-lg"
+                      style={{ backgroundColor: `${dscrColor}20` }}
+                    >
+                      <Shield className="h-5 w-5" style={{ color: dscrColor }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="text-xs font-medium text-emerald-500">
+                      +{((currentDSCR - previousDSCR) / previousDSCR * 100).toFixed(1)}%
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      vs prev quarter (was {previousDSCR.toFixed(2)}x, target {targetDSCR.toFixed(2)}x)
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min((currentDSCR / 3.0) * 100, 100)}%`,
+                        backgroundColor: dscrColor,
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div custom={5} variants={cardVariants} initial="hidden" animate="visible">
+              <Card className="relative overflow-hidden border-l-4 border-l-cyan-500">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Break-even Point</p>
+                      <p className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">Q3 2025</p>
+                    </div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-950/30">
+                      <Target className="h-5 w-5 text-cyan-500" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <span className="text-xs text-muted-foreground">7 months away — on track</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-cyan-500 transition-all duration-700"
+                        style={{ width: '72%' }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-cyan-600 dark:text-cyan-400">72%</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           </div>
 
           {/* Composed Chart */}
@@ -832,7 +1121,7 @@ export default function FinancialsModule() {
                             <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip
+                        <RechartsTooltip
                           formatter={(value: number, name: string) => [formatCurrency(value), name]}
                           contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
                         />
@@ -963,7 +1252,321 @@ export default function FinancialsModule() {
           </motion.div>
         </TabsContent>
 
-        {/* ━━━ Tab 4: Financial Statements ━━━ */}
+        {/* ━━━ Tab 4: Bank Metrics (NEW) ━━━ */}
+        <TabsContent value="bank-metrics" className="space-y-6">
+          {/* Header Banner */}
+          <motion.div variants={fadeIn} initial="hidden" animate="visible">
+            <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50/80 to-teal-50/80 dark:from-emerald-950/20 dark:to-teal-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
+                    <Landmark className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-emerald-900 dark:text-emerald-100">Bank Loan Proposal Metrics</h3>
+                    <p className="text-sm text-emerald-700/70 dark:text-emerald-300/60">Key financial ratios and readiness assessment for bank financing</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* DSCR Calculator Card */}
+            <motion.div variants={fadeIn} initial="hidden" animate="visible" className="lg:col-span-2">
+              <Card className="border-l-4" style={{ borderLeftColor: dscrColor }}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Gauge className="h-5 w-5" style={{ color: dscrColor }} />
+                    <CardTitle className="text-lg">DSCR Calculator</CardTitle>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 ml-auto"
+                      style={{
+                        borderColor: dscrColor,
+                        color: dscrColor,
+                        backgroundColor: `${dscrColor}15`,
+                      }}
+                    >
+                      {getDSCRLabel(currentDSCR)}
+                    </Badge>
+                  </div>
+                  <CardDescription>Debt Service Coverage Ratio — Net Operating Income / Debt Obligations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left: Inputs & Result */}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-lg border p-3 space-y-1">
+                          <p className="text-xs text-muted-foreground">Net Operating Income</p>
+                          <p className="text-lg font-bold">RM4.5M<span className="text-xs font-normal text-muted-foreground">/year</span></p>
+                        </div>
+                        <div className="rounded-lg border p-3 space-y-1">
+                          <p className="text-xs text-muted-foreground">Annual Debt Obligation</p>
+                          <p className="text-lg font-bold">RM3.1M<span className="text-xs font-normal text-muted-foreground">/year</span></p>
+                          <p className="text-[10px] text-muted-foreground">RM2M loan @ 8% over 5 years</p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border-2 p-4 text-center" style={{ borderColor: dscrColor, backgroundColor: `${dscrColor}08` }}>
+                        <p className="text-xs text-muted-foreground mb-1">DSCR Result</p>
+                        <p className="text-4xl font-bold" style={{ color: dscrColor }}>
+                          {currentDSCR.toFixed(2)}x
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: dscrColor }}>
+                          {getDSCRLabel(currentDSCR)} — {currentDSCR >= 1.25 ? 'Qualifies for bank loan' : 'Below bank minimum threshold'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right: Gauge */}
+                    <div className="flex items-center justify-center">
+                      <DSCRGauge value={currentDSCR} maxValue={3.0} />
+                    </div>
+                  </div>
+
+                  {/* DSCR Projection Table */}
+                  <div className="mt-6">
+                    <h4 className="text-sm font-semibold mb-3">DSCR Projection (3-Year)</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Period</TableHead>
+                          <TableHead className="text-right">Net Operating Income</TableHead>
+                          <TableHead className="text-right">Debt Service</TableHead>
+                          <TableHead className="text-right">DSCR</TableHead>
+                          <TableHead className="text-right">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dscrProjectionData.map((row) => {
+                          const rowColor = getDSCRColor(row.dscr);
+                          return (
+                            <TableRow key={row.year}>
+                              <TableCell className="font-medium">{row.year}</TableCell>
+                              <TableCell className="text-right font-mono">{formatRM(row.noi)}</TableCell>
+                              <TableCell className="text-right font-mono">{formatRM(row.debtService)}</TableCell>
+                              <TableCell className="text-right font-mono font-bold" style={{ color: rowColor }}>
+                                {row.dscr.toFixed(2)}x
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px]"
+                                  style={{
+                                    borderColor: rowColor,
+                                    color: rowColor,
+                                    backgroundColor: `${rowColor}15`,
+                                  }}
+                                >
+                                  {getDSCRLabel(row.dscr)}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Collateral Coverage Card */}
+            <motion.div variants={fadeIn} initial="hidden" animate="visible">
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-amber-500" />
+                    <CardTitle className="text-lg">Collateral Coverage</CardTitle>
+                  </div>
+                  <CardDescription>Asset value vs loan amount</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Asset Value</p>
+                        <p className="text-lg font-bold">RM2,105K</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Loan Amount</p>
+                        <p className="text-lg font-bold text-rose-600">RM2,000K</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Collateral Ratio</span>
+                        <span className="text-sm font-bold text-amber-600">105.3%</span>
+                      </div>
+                      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full bg-amber-500" style={{ width: '100%' }} />
+                        <div
+                          className="h-full rounded-full bg-emerald-500 -mt-2.5"
+                          style={{ width: '105.3%' }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>0%</span>
+                        <span className="text-amber-600 font-medium">100% = full coverage</span>
+                        <span>150%</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3">
+                      <div className="flex items-start gap-2">
+                        <Info className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Partial Coverage</p>
+                          <p className="text-[11px] text-amber-600/70 dark:text-amber-400/60">
+                            Collateral covers 105.3% of loan — barely above 100% threshold. Consider pledging additional assets for stronger coverage.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Cash Flow Adequacy Card */}
+            <motion.div variants={fadeIn} initial="hidden" animate="visible">
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-emerald-500" />
+                    <CardTitle className="text-lg">Cash Flow Adequacy</CardTitle>
+                  </div>
+                  <CardDescription>Operating cash flow vs debt service</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Operating Cash Flow</p>
+                        <p className="text-lg font-bold text-emerald-600">RM2.1M<span className="text-xs font-normal text-muted-foreground">/year</span></p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Annual Debt Service</p>
+                        <p className="text-lg font-bold">RM3.1M<span className="text-xs font-normal text-muted-foreground">/year</span></p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Cash Flow Coverage</span>
+                        <span className="text-sm font-bold text-emerald-600">1.45x</span>
+                      </div>
+                      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: '72%' }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                          className="h-full rounded-full bg-emerald-500"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>0x</span>
+                        <span className="text-emerald-600 font-medium">1.25x = bank minimum</span>
+                        <span>3.0x</span>
+                      </div>
+                    </div>
+
+                    {/* Cash Flow Margin Trend */}
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground mb-2">Cash Flow Margin Trend</p>
+                      <div className="space-y-2">
+                        {[
+                          { period: 'Q3 2024', margin: 28.5 },
+                          { period: 'Q4 2024', margin: 34.2 },
+                          { period: 'Q1 2025 (proj)', margin: 42.0 },
+                        ].map((item) => (
+                          <div key={item.period} className="flex items-center gap-3">
+                            <span className="text-[11px] text-muted-foreground w-28 flex-shrink-0">{item.period}</span>
+                            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-emerald-400"
+                                style={{ width: `${(item.margin / 60) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] font-medium text-emerald-600 w-12 text-right">{item.margin.toFixed(1)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Bank Approval Readiness Card */}
+            <motion.div variants={fadeIn} initial="hidden" animate="visible" className="lg:col-span-2">
+              <Card className="border-emerald-200 dark:border-emerald-800">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Landmark className="h-5 w-5 text-emerald-500" />
+                      <CardTitle className="text-lg">Bank Approval Readiness</CardTitle>
+                    </div>
+                    <Badge className="bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800" variant="outline">
+                      4 of 6 criteria met
+                    </Badge>
+                  </div>
+                  <CardDescription>What banks look for when evaluating loan applications</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {bankApprovalChecklist.map((item, i) => (
+                      <motion.div
+                        key={item.label}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.08 }}
+                        className={`rounded-lg border p-3 flex items-center gap-3 ${
+                          item.passed
+                            ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/10'
+                            : 'border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10'
+                        }`}
+                      >
+                        {item.passed ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+                        ) : (
+                          <CircleDot className="h-5 w-5 text-amber-500 flex-shrink-0" />
+                        )}
+                        <div>
+                          <p className={`text-sm font-medium ${item.passed ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                            {item.label}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {item.passed ? 'Requirement met' : 'Not yet achieved'}
+                          </p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Readiness Score */}
+                  <div className="mt-4 rounded-lg border p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Overall Readiness Score</span>
+                      <span className="text-sm font-bold text-amber-600">66.7%</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-500" style={{ width: '66.7%' }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      2 criteria remaining — address operating history and collateral coverage to improve approval chances.
+                      DSCR and cash flow metrics are strong indicators for bank financing.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </TabsContent>
+
+        {/* ━━━ Tab 5: Financial Statements ━━━ */}
         <TabsContent value="statements" className="space-y-6">
           {/* Key Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -996,12 +1599,12 @@ export default function FinancialsModule() {
             <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
               <Card>
                 <CardContent className="p-4 flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
-                    <TrendingUp className="h-6 w-6 text-emerald-500" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg" style={{ backgroundColor: `${dscrColor}15` }}>
+                    <Shield className="h-6 w-6" style={{ color: dscrColor }} />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Break-even Point</p>
-                    <p className="text-xl font-bold">Jul 2025</p>
+                    <p className="text-sm text-muted-foreground">DSCR</p>
+                    <p className="text-xl font-bold" style={{ color: dscrColor }}>{currentDSCR.toFixed(2)}x</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1067,16 +1670,25 @@ export default function FinancialsModule() {
                           {plData.map((row, i) => (
                             <TableRow
                               key={i}
-                              className={row.bold ? 'font-semibold' : ''}
+                              className={`${row.bold ? 'font-semibold' : ''} ${row.label === 'DSCR' ? 'border-t-2 bg-emerald-50/50 dark:bg-emerald-950/10' : ''}`}
                             >
                               <TableCell className={row.indent ? 'pl-8' : ''}>
-                                {row.label}
+                                {row.label === 'DSCR' ? (
+                                  <div className="flex items-center gap-2">
+                                    <Shield className="h-3.5 w-3.5" style={{ color: dscrColor }} />
+                                    {row.label}
+                                  </div>
+                                ) : (
+                                  row.label
+                                )}
                               </TableCell>
                               <TableCell className="text-right text-muted-foreground text-sm">
                                 {row.values[0]}
                               </TableCell>
                               <TableCell className="text-right font-mono">
-                                {row.values[1]}
+                                <span className={row.label === 'DSCR' ? getDSCRTailwindColor(currentDSCR) : ''}>
+                                  {row.values[1]}
+                                </span>
                               </TableCell>
                               <TableCell className="text-right font-mono text-muted-foreground">
                                 {row.values[2]}
@@ -1170,16 +1782,25 @@ export default function FinancialsModule() {
                           {cashFlowData.map((row, i) => (
                             <TableRow
                               key={i}
-                              className={row.bold ? 'font-semibold' : ''}
+                              className={`${row.bold ? 'font-semibold' : ''} ${row.label === 'DSCR' ? 'border-t-2 bg-emerald-50/50 dark:bg-emerald-950/10' : ''}`}
                             >
                               <TableCell className={row.indent ? 'pl-8' : ''}>
-                                {row.label}
+                                {row.label === 'DSCR' ? (
+                                  <div className="flex items-center gap-2">
+                                    <Shield className="h-3.5 w-3.5" style={{ color: dscrColor }} />
+                                    {row.label}
+                                  </div>
+                                ) : (
+                                  row.label
+                                )}
                               </TableCell>
                               <TableCell className="text-right text-muted-foreground text-sm">
                                 {row.values[0]}
                               </TableCell>
                               <TableCell className="text-right font-mono">
-                                {row.values[1]}
+                                <span className={row.label === 'DSCR' ? getDSCRTailwindColor(currentDSCR) : ''}>
+                                  {row.values[1]}
+                                </span>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1193,7 +1814,7 @@ export default function FinancialsModule() {
           </Card>
         </TabsContent>
 
-        {/* ━━━ Tab 5: Forecast Advisor ━━━ */}
+        {/* ━━━ Tab 6: Forecast Advisor ━━━ */}
         <TabsContent value="advisor" className="space-y-6">
           {/* AI Insights Panel */}
           <motion.div variants={fadeIn} initial="hidden" animate="visible">
@@ -1228,6 +1849,49 @@ export default function FinancialsModule() {
                       At current trajectory, break-even projected by July 2025. Scenario analysis suggests 5-9 month range.
                     </p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Bank-Specific Insights (NEW) */}
+          <motion.div variants={fadeIn} initial="hidden" animate="visible">
+            <Card className="border-teal-200 bg-teal-50/50 dark:border-teal-900 dark:bg-teal-950/20">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Landmark className="h-5 w-5 text-teal-500" />
+                  <CardTitle className="text-lg">Bank-Specific Insights</CardTitle>
+                </div>
+                <CardDescription>AI analysis tailored for bank loan proposal readiness</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-lg bg-background/60 p-3 text-sm space-y-2">
+                  <p className="font-medium text-emerald-700 dark:text-emerald-400">
+                    DSCR Improving
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    DSCR currently at {currentDSCR.toFixed(2)}x, projected to reach 2.1x by Year 2. 
+                    This trajectory strongly supports loan approval — banks look for consistent improvement in debt coverage.
+                    Previous quarter was {previousDSCR.toFixed(2)}x, showing +{((currentDSCR - previousDSCR) / previousDSCR * 100).toFixed(1)}% quarter-over-quarter improvement.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-background/60 p-3 text-sm space-y-2">
+                  <p className="font-medium text-teal-700 dark:text-teal-400">
+                    Cash Flow Adequacy Strong
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Operating cash flow covers debt service 1.45x — well above the 1.25x bank minimum. 
+                    Cash flow margin trending upward from 28.5% to 34.2%, indicating improving operational efficiency.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-background/60 p-3 text-sm space-y-2">
+                  <p className="font-medium text-amber-700 dark:text-amber-400">
+                    Collateral Gap Identified
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Consider additional assets for full coverage. Current collateral ratio at 105.3% barely exceeds the 100% threshold.
+                    Intellectual property, SaaS recurring revenue contracts, or personal guarantees could strengthen the collateral position.
+                  </p>
                 </div>
               </CardContent>
             </Card>

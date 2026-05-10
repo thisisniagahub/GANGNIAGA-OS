@@ -23,6 +23,7 @@ import {
   Zap,
   ArrowUpRight,
   ArrowDownRight,
+  Shield,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -42,12 +43,12 @@ import {
 
 function formatCurrency(value: number): string {
   if (value >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`;
+    return `RM${(value / 1_000_000).toFixed(1)}M`;
   }
   if (value >= 1_000) {
-    return `$${(value / 1_000).toFixed(1)}K`;
+    return `RM${(value / 1_000).toFixed(1)}K`;
   }
-  return `$${value.toLocaleString()}`;
+  return `RM${value.toLocaleString()}`;
 }
 
 function formatKPIValue(value: number, unit: string): string {
@@ -58,6 +59,8 @@ function formatKPIValue(value: number, unit: string): string {
       return `${value}%`;
     case 'months':
       return `${value} months`;
+    case 'ratio':
+      return `${value.toFixed(2)}x`;
     default:
       return String(value);
   }
@@ -116,6 +119,7 @@ const kpiIcons: Record<string, React.ElementType> = {
   MRR: BarChart3,
   'Customer Churn': Users,
   ARR: Zap,
+  DSCR: Shield,
 };
 
 // ── Animation Variants ──────────────────────────────────────────────────
@@ -144,30 +148,30 @@ const aiInsights = [
   {
     title: 'Revenue Growth Accelerating',
     description:
-      'Monthly revenue has grown 11.1% MoM, outpacing the previous quarter average of 7.2%. Current trajectory suggests hitting the $300K target within 6 weeks.',
+      'Monthly revenue has grown 11.1% MoM, outpacing the previous quarter average of 7.2%. Current trajectory suggests hitting the RM300K target within 6 weeks.',
     severity: 'positive' as const,
     icon: TrendingUp,
   },
   {
+    title: 'DSCR Healthy at 1.45x',
+    description:
+      'Debt Service Coverage Ratio improved from 1.22x to 1.45x, above the bank minimum of 1.25x. Projected to reach 2.1x by Year 2 — strong position for loan approval.',
+    severity: 'positive' as const,
+    icon: Shield,
+  },
+  {
     title: 'Burn Rate Improving',
     description:
-      'Burn rate decreased 4% from $195K to $187.2K, primarily driven by infrastructure cost optimization. Runway extended from 15 to 18 months.',
+      'Burn rate decreased 4% from RM195K to RM187.2K, primarily driven by infrastructure cost optimization. Runway extended from 15 to 18 months.',
     severity: 'positive' as const,
     icon: ArrowDownRight,
   },
   {
-    title: 'Churn Approaching Target',
+    title: 'Break-even on Track — Q3 2025',
     description:
-      'Customer churn dropped 22% to 3.2%, nearing the 2% target. Recommend focusing retention efforts on the Tier 1 segment where churn remains highest at 4.8%.',
+      'Profit margins expanded from 18.9% to 34.2%. At current trajectory, break-even by Q3 2025 without additional funding. Bank loan would accelerate this to Q2 2025.',
     severity: 'caution' as const,
     icon: Target,
-  },
-  {
-    title: 'Profitability Trend Positive',
-    description:
-      'Profit margins have expanded from 18.9% in Q1 to 34.2% in the current month. At this rate, the company could reach break-even by Q3 2025 without additional funding.',
-    severity: 'positive' as const,
-    icon: Zap,
   },
 ];
 
@@ -186,9 +190,9 @@ export default function Dashboard() {
           {kpis.map((kpi, i) => {
             const Icon = kpiIcons[kpi.metric] ?? Activity;
             const isPositive =
-              kpi.trend === 'up'
-                ? kpi.metric !== 'Burn Rate' && kpi.metric !== 'Customer Churn'
-                : kpi.metric === 'Burn Rate' || kpi.metric === 'Customer Churn';
+              kpi.metric === 'Burn Rate'
+                ? kpi.trend === 'down'
+                : kpi.trend === 'up';
             const progress = Math.min((kpi.value / kpi.target) * 100, 100);
 
             return (
