@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,11 @@ const moduleTitles: Record<string, { title: string; subtitle: string }> = {
 export default function Header() {
   const { activeModule, toggleCopilot } = useAppStore();
   const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const moduleInfo = moduleTitles[activeModule] || { title: 'Dashboard', subtitle: '' };
 
@@ -56,7 +62,7 @@ export default function Header() {
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {mounted ? (theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />) : <Sun className="h-4 w-4" />}
         </Button>
 
         {/* Notifications */}
