@@ -11,7 +11,8 @@ export type ModuleId =
   | 'idea-canvas'
   | 'plan-review'
   | 'plan-actuals'
-  | 'pitch-deck';
+  | 'pitch-deck'
+  | 'research';
 
 export type ProposalType = 
   | 'bank_loan' 
