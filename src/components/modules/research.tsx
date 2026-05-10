@@ -63,6 +63,7 @@ import {
   Verified,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 // ─── Type Configuration ─────────────────────────────────────────────────────
 
@@ -295,17 +296,36 @@ export function ResearchModule() {
     setVerifyingIds((prev) => new Set(prev).add(id));
     // Simulate AI verification
     setTimeout(() => {
+      useAppStore.setState((s) => ({
+        citations: s.citations.map((c) =>
+          c.id === id ? { ...c, verified: true } : c
+        ),
+      }));
       setVerifyingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-      // In a real app, this would update the store
+      toast.success('Citation verified');
     }, 2000);
   }, []);
 
   const handleAddCitation = useCallback(() => {
-    // In a real app, this would add to the store via API
+    if (!newSource.trim()) return;
+
+    const newCitation: CitationData = {
+      id: Date.now().toString(),
+      source: newSource.trim(),
+      url: newUrl.trim() || null,
+      type: newType,
+      geography: newGeography.trim() || null,
+      datePublished: newDate || null,
+      dataPoint: newDataPoint.trim() || null,
+      verified: false,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+
+    useAppStore.setState((s) => ({ citations: [...s.citations, newCitation] }));
     setAddDialogOpen(false);
     setNewSource('');
     setNewUrl('');
@@ -313,7 +333,8 @@ export function ResearchModule() {
     setNewGeography('');
     setNewDate('');
     setNewDataPoint('');
-  }, []);
+    toast.success('Citation added');
+  }, [newSource, newUrl, newType, newGeography, newDate, newDataPoint]);
 
   // ─── Render ──────────────────────────────────────────────────────────────
 

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/store';
 import type { BusinessPlanData, ProposalType, ProposalSectionKey } from '@/lib/types';
+import { toast } from 'sonner';
 
 // shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -559,6 +560,11 @@ export default function BusinessPlans() {
   const [editingSection, setEditingSection] = useState<ProposalSectionKey | null>(null);
   const [editText, setEditText] = useState('');
   const [expandedSection, setExpandedSection] = useState<ProposalSectionKey | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [planToDelete, setPlanToDelete] = useState<string | null>(null);
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatedCount, setGeneratedCount] = useState(0);
+  const abortGenerationRef = useRef(false);
 
   const selectedPlanData = plans.find((p) => p.id === selectedPlan) ?? null;
 
@@ -668,8 +674,98 @@ export default function BusinessPlans() {
       if (selectedPlan === id) {
         setSelectedPlan(null);
       }
+      toast.success('Proposal deleted', { description: 'The proposal has been permanently removed.' });
     },
     [plans, selectedPlan, setSelectedPlan]
+  );
+
+  const confirmDeletePlan = useCallback((id: string) => {
+    setPlanToDelete(id);
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const handleGenerateAllSections = useCallback(
+    async () => {
+      if (!selectedPlanData) return;
+      const emptySections = SECTION_KEYS.filter((k) => !selectedPlanData.sections[k]);
+      if (emptySections.length === 0) {
+        toast.info('All sections completed', { description: 'There are no empty sections to generate.' });
+        return;
+      }
+      setGeneratingAll(true);
+      setGeneratedCount(0);
+      abortGenerationRef.current = false;
+      toast.info('Generating all sections', { description: `Starting generation for ${emptySections.length} empty sections...` });
+      let successCount = 0;
+      for (const key of emptySections) {
+        if (abortGenerationRef.current) break;
+        try {
+          const res = await fetch('/api/business-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: selectedPlanData.title,
+              industry: selectedPlanData.industry,
+              section: key,
+              proposalType: selectedPlanData.proposalType,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.content) {
+              const currentPlans = useAppStore.getState().plans;
+              const updatedPlans = currentPlans.map((p) =>
+                p.id === selectedPlanData.id
+                  ? { ...p, sections: { ...p.sections, [key]: data.content }, updatedAt: new Date().toISOString().split('T')[0] }
+                  : p
+              );
+              useAppStore.setState({ plans: updatedPlans });
+              successCount++;
+              setGeneratedCount(successCount);
+            }
+          }
+        } catch {
+          // Continue with next section on error
+        }
+      }
+      setGeneratingAll(false);
+      toast.success('Bulk generation complete', { description: `Generated ${successCount} of ${emptySections.length} sections.` });
+    },
+    [selectedPlanData]
+  );
+
+  const handleCancelGeneration = useCallback(() => {
+    abortGenerationRef.current = true;
+    setGeneratingAll(false);
+    toast.info('Generation cancelled');
+  }, []);
+
+  const handleUpdateProposalType = useCallback(
+    (newType: ProposalType) => {
+      if (!selectedPlanData) return;
+      const updatedPlans = plans.map((p) =>
+        p.id === selectedPlanData.id
+          ? { ...p, proposalType: newType, updatedAt: new Date().toISOString().split('T')[0] }
+          : p
+      );
+      useAppStore.setState({ plans: updatedPlans });
+      toast.success('Proposal type updated', { description: `Changed to ${PROPOSAL_TYPE_CONFIG[newType].label}` });
+    },
+    [selectedPlanData, plans]
+  );
+
+  const handleUpdateStatus = useCallback(
+    (newStatus: BusinessPlanData['status']) => {
+      if (!selectedPlanData) return;
+      const updatedPlans = plans.map((p) =>
+        p.id === selectedPlanData.id
+          ? { ...p, status: newStatus, updatedAt: new Date().toISOString().split('T')[0] }
+          : p
+      );
+      useAppStore.setState({ plans: updatedPlans });
+      toast.success('Status updated', { description: `Changed to ${STATUS_CONFIG[newStatus].label}` });
+    },
+    [selectedPlanData, plans]
   );
 
   // ── Render ──────────────────────────────────────────────────────────
@@ -971,32 +1067,77 @@ export default function BusinessPlans() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <CardTitle className="text-base truncate">{selectedPlanData.title}</CardTitle>
-                      <ProposalTypeBadge type={selectedPlanData.proposalType} />
-                      <StatusBadge status={selectedPlanData.status} />
+                      {/* Proposal Type Switcher */}
+                      <Select value={selectedPlanData.proposalType} onValueChange={(v) => handleUpdateProposalType(v as ProposalType)}>
+                        <SelectTrigger className={`h-6 w-auto gap-1 text-[10px] border-0 px-1.5 py-0 ${accentColors.bgLight} ${accentColors.text} ${accentColors.border}`}>
+                          {React.createElement(PROPOSAL_TYPE_CONFIG[selectedPlanData.proposalType].icon, { className: 'h-2.5 w-2.5' })}
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(PROPOSAL_TYPE_CONFIG) as [ProposalType, ProposalTypeConfig][]).map(([type, cfg]) => {
+                            const TIcon = cfg.icon;
+                            return (
+                              <SelectItem key={type} value={type}>
+                                <div className="flex items-center gap-2">
+                                  <TIcon className="h-3.5 w-3.5" />
+                                  <span>{cfg.label}</span>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {/* Status Switcher */}
+                      <Select value={selectedPlanData.status} onValueChange={(v) => handleUpdateStatus(v as BusinessPlanData['status'])}>
+                        <SelectTrigger className="h-6 w-auto gap-1 text-[10px] border-0 px-1.5 py-0">
+                          <StatusBadge status={selectedPlanData.status} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(['draft', 'in_progress', 'completed', 'archived'] as const).map((s) => (
+                            <SelectItem key={s} value={s}>
+                              <div className="flex items-center gap-2">
+                                <StatusBadge status={s} />
+                                <span className="text-xs">{STATUS_CONFIG[s].label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <p className={`text-[10px] ${accentColors.text} mt-0.5`}>
                       {PROPOSAL_TYPE_CONFIG[selectedPlanData.proposalType].focusHint}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={() => {
-                        setNewTitle(selectedPlanData.title);
-                        setNewProposalType(selectedPlanData.proposalType);
-                        setNewIndustry(selectedPlanData.industry);
-                      }}
-                    >
-                      <Edit className="h-3 w-3" />
-                      Edit
-                    </Button>
+                    {/* Generate All Sections Button */}
+                    {generatingAll ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-950/30"
+                        onClick={handleCancelGeneration}
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {generatedCount} generated...
+                        <span className="text-[10px] text-muted-foreground">(Cancel)</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`h-7 gap-1.5 text-xs ${accentColors.text} ${accentColors.border} ${accentColors.bgHover}`}
+                        onClick={handleGenerateAllSections}
+                        disabled={completedSections === SECTION_KEYS.length}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Generate All
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 gap-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                      onClick={() => handleDeletePlan(selectedPlanData.id)}
+                      onClick={() => confirmDeletePlan(selectedPlanData.id)}
                     >
                       <Trash2 className="h-3 w-3" />
                       Delete
@@ -1086,6 +1227,42 @@ export default function BusinessPlans() {
           )}
         </motion.div>
       </div>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Proposal
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this proposal? This action cannot be undone and all section content will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <DialogClose asChild>
+              <Button variant="outline" size="sm">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              size="sm"
+              className="gap-1.5 bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (planToDelete) {
+                  handleDeletePlan(planToDelete);
+                  setPlanToDelete(null);
+                  setDeleteDialogOpen(false);
+                }
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

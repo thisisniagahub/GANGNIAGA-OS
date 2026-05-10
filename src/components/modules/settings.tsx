@@ -13,6 +13,15 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Slider } from '@/components/ui/slider';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import {
   Settings,
   User,
   Building2,
@@ -42,8 +51,13 @@ import {
   Send,
   Layout,
   Sparkles,
+  Cpu,
+  Zap,
+  Volume2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppStore } from '@/lib/store';
+import { toast } from 'sonner';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +91,28 @@ const sessions = [
   { id: '3', device: 'Firefox on Windows', location: 'Singapore, SG', lastActive: '1 day ago', current: false },
 ];
 
+const ASEAN_COUNTRIES = [
+  { value: 'my', label: 'Malaysia' },
+  { value: 'sg', label: 'Singapore' },
+  { value: 'id', label: 'Indonesia' },
+  { value: 'th', label: 'Thailand' },
+  { value: 'ph', label: 'Philippines' },
+  { value: 'vn', label: 'Vietnam' },
+  { value: 'mm', label: 'Myanmar' },
+  { value: 'kh', label: 'Cambodia' },
+  { value: 'la', label: 'Laos' },
+  { value: 'bn', label: 'Brunei' },
+];
+
+const AI_MODELS = [
+  { value: 'gpt-4', label: 'GPT-4' },
+  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+  { value: 'claude-3-opus', label: 'Claude 3 Opus' },
+  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
+  { value: 'gemini-pro', label: 'Gemini Pro' },
+  { value: 'gemini-ultra', label: 'Gemini Ultra' },
+];
+
 // ─── Animation Variants ─────────────────────────────────────────────────────
 
 const fadeIn = {
@@ -98,7 +134,9 @@ const staggerItem = {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function SettingsModule() {
-  const [activeTab, setActiveTab] = useState('profile');
+  const { integrations: storeIntegrations, updateIntegration } = useAppStore();
+
+  const [activeTab, setActiveTab] = useState('company');
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [density, setDensity] = useState<'compact' | 'normal' | 'comfortable'>('normal');
@@ -115,6 +153,35 @@ export function SettingsModule() {
     new Set(integrations.filter((i) => i.status === 'connected').map((i) => i.id))
   );
 
+  // ── Company Profile ──
+  const [companyProfile, setCompanyProfile] = useState({
+    name: 'GangNiaga Sdn Bhd',
+    industry: 'saas',
+    country: 'my',
+    size: '11-50',
+  });
+
+  // ── Sync Frequency per integration ──
+  const [syncFrequencies, setSyncFrequencies] = useState<Record<string, 'daily' | 'weekly' | 'monthly'>>({
+    quickbooks: 'monthly',
+    xero: 'monthly',
+    stripe: 'weekly',
+    paypal: 'monthly',
+  });
+
+  // ── Notification Preferences ──
+  const [varianceThreshold, setVarianceThreshold] = useState(15);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(false);
+  const [alertSeverityFilter, setAlertSeverityFilter] = useState<'critical_only' | 'warning_and_above' | 'all'>('warning_and_above');
+
+  // ── AI Model Settings ──
+  const [aiSettings, setAiSettings] = useState({
+    model: 'gpt-4',
+    verbosity: 'balanced' as 'concise' | 'balanced' | 'detailed',
+    autoGenerate: true,
+  });
+
   const toggleIntegration = (id: string) => {
     setConnectedIntegrations((prev) => {
       const next = new Set(prev);
@@ -125,15 +192,67 @@ export function SettingsModule() {
       }
       return next;
     });
+
+    // Update the Zustand store for QuickBooks and Xero
+    if (id === 'quickbooks' || id === 'xero') {
+      const integrationType = id as 'quickbooks' | 'xero';
+      const storeIntegration = storeIntegrations.find((i) => i.type === integrationType);
+      const isConnected = connectedIntegrations.has(id);
+      if (isConnected) {
+        // Currently connected, disconnecting
+        updateIntegration(integrationType, { status: 'disconnected', lastSync: null });
+        toast.info(`${id === 'quickbooks' ? 'QuickBooks' : 'Xero'} disconnected`, {
+          description: 'Data sync has been paused.',
+        });
+      } else {
+        // Currently disconnected, connecting
+        updateIntegration(integrationType, {
+          status: 'connected',
+          lastSync: new Date().toISOString(),
+          syncFrequency: syncFrequencies[id] || 'monthly',
+        });
+        toast.success(`${id === 'quickbooks' ? 'QuickBooks' : 'Xero'} connected`, {
+          description: 'Data sync is now active.',
+        });
+      }
+    }
+  };
+
+  const handleSyncFrequencyChange = (id: string, frequency: 'daily' | 'weekly' | 'monthly') => {
+    setSyncFrequencies((prev) => ({ ...prev, [id]: frequency }));
+    // Update store for QuickBooks and Xero
+    if (id === 'quickbooks' || id === 'xero') {
+      updateIntegration(id as 'quickbooks' | 'xero', { syncFrequency: frequency });
+      toast.success('Sync frequency updated', { description: `${id === 'quickbooks' ? 'QuickBooks' : 'Xero'} will sync ${frequency}.` });
+    }
+  };
+
+  const handleSaveCompanyProfile = () => {
+    toast.success('Company profile saved', {
+      description: `${companyProfile.name} profile has been updated.`,
+    });
+  };
+
+  const handleSaveNotifications = () => {
+    toast.success('Notification preferences saved', {
+      description: `Variance threshold: ${varianceThreshold}%, Severity: ${alertSeverityFilter === 'critical_only' ? 'Critical only' : alertSeverityFilter === 'warning_and_above' ? 'Warning & above' : 'All alerts'}`,
+    });
+  };
+
+  const handleSaveAiSettings = () => {
+    toast.success('AI settings saved', {
+      description: `Model: ${AI_MODELS.find((m) => m.value === aiSettings.model)?.label}, Verbosity: ${aiSettings.verbosity}`,
+    });
   };
 
   const tabConfig = [
+    { value: 'company', label: 'Company', icon: <Building2 className="size-4" /> },
     { value: 'profile', label: 'Profile', icon: <User className="size-4" /> },
-    { value: 'organization', label: 'Organization', icon: <Building2 className="size-4" /> },
     { value: 'security', label: 'Security', icon: <Shield className="size-4" /> },
     { value: 'appearance', label: 'Appearance', icon: <Palette className="size-4" /> },
     { value: 'integrations', label: 'Integrations', icon: <Globe className="size-4" /> },
     { value: 'notifications', label: 'Notifications', icon: <Bell className="size-4" /> },
+    { value: 'ai', label: 'AI', icon: <Sparkles className="size-4" /> },
   ];
 
   return (
@@ -166,6 +285,129 @@ export function SettingsModule() {
 
         <div className="flex-1 mt-4 overflow-y-auto max-h-[calc(100vh-200px)]">
           <AnimatePresence mode="wait">
+
+            {/* ── Company Profile Tab ──────────────────────────────────────── */}
+            {activeTab === 'company' && (
+              <motion.div key="company" {...fadeIn} className="space-y-6 max-w-2xl">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Building2 className="size-4 text-emerald-600" />
+                      Company Profile
+                    </CardTitle>
+                    <CardDescription>Your organization&apos;s information used across all proposals and reports</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Company Name */}
+                    <div className="space-y-2">
+                      <Label htmlFor="companyName">Company Name</Label>
+                      <Input
+                        id="companyName"
+                        value={companyProfile.name}
+                        onChange={(e) => setCompanyProfile((prev) => ({ ...prev, name: e.target.value }))}
+                        className="border-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    {/* Industry */}
+                    <div className="space-y-2">
+                      <Label>Industry</Label>
+                      <Select
+                        value={companyProfile.industry}
+                        onValueChange={(v) => setCompanyProfile((prev) => ({ ...prev, industry: v }))}
+                      >
+                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
+                          <SelectValue placeholder="Select industry" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="saas">SaaS / Software</SelectItem>
+                          <SelectItem value="fintech">Fintech</SelectItem>
+                          <SelectItem value="ecommerce">E-Commerce</SelectItem>
+                          <SelectItem value="healthcare">Healthcare</SelectItem>
+                          <SelectItem value="education">Education</SelectItem>
+                          <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="logistics">Logistics</SelectItem>
+                          <SelectItem value="realestate">Real Estate</SelectItem>
+                          <SelectItem value="agriculture">Agriculture</SelectItem>
+                          <SelectItem value="fandb">Food & Beverage</SelectItem>
+                          <SelectItem value="construction">Construction</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Country */}
+                    <div className="space-y-2">
+                      <Label>Country</Label>
+                      <Select
+                        value={companyProfile.country}
+                        onValueChange={(v) => setCompanyProfile((prev) => ({ ...prev, country: v }))}
+                      >
+                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ASEAN_COUNTRIES.map((c) => (
+                            <SelectItem key={c.value} value={c.value}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Company Size */}
+                    <div className="space-y-2">
+                      <Label>Company Size</Label>
+                      <Select
+                        value={companyProfile.size}
+                        onValueChange={(v) => setCompanyProfile((prev) => ({ ...prev, size: v }))}
+                      >
+                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
+                          <SelectValue placeholder="Select size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1-10">1–10 employees</SelectItem>
+                          <SelectItem value="11-50">11–50 employees</SelectItem>
+                          <SelectItem value="51-200">51–200 employees</SelectItem>
+                          <SelectItem value="201-500">201–500 employees</SelectItem>
+                          <SelectItem value="501-1000">501–1,000 employees</SelectItem>
+                          <SelectItem value="1000+">1,000+ employees</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Company Summary</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                        <span>Company:</span>
+                        <span className="font-medium text-foreground">{companyProfile.name}</span>
+                        <span>Industry:</span>
+                        <span className="font-medium text-foreground capitalize">{companyProfile.industry === 'fandb' ? 'Food & Beverage' : companyProfile.industry === 'saas' ? 'SaaS / Software' : companyProfile.industry}</span>
+                        <span>Country:</span>
+                        <span className="font-medium text-foreground">{ASEAN_COUNTRIES.find((c) => c.value === companyProfile.country)?.label}</span>
+                        <span>Size:</span>
+                        <span className="font-medium text-foreground">{companyProfile.size.replace('-', '–')} employees</span>
+                      </div>
+                    </div>
+
+                    {/* Save */}
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        onClick={handleSaveCompanyProfile}
+                      >
+                        <Save className="size-4" />
+                        Save Profile
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
             {/* ── Profile Tab ──────────────────────────────────────────────── */}
             {activeTab === 'profile' && (
               <motion.div key="profile" {...fadeIn} className="space-y-6 max-w-2xl">
@@ -233,113 +475,12 @@ export function SettingsModule() {
 
                     {/* Save */}
                     <div className="flex justify-end pt-2">
-                      <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
+                      <Button
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        onClick={() => toast.success('Profile saved', { description: 'Your profile information has been updated.' })}
+                      >
                         <Save className="size-4" />
                         Save Changes
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-
-            {/* ── Organization Tab ─────────────────────────────────────────── */}
-            {activeTab === 'organization' && (
-              <motion.div key="organization" {...fadeIn} className="space-y-6 max-w-2xl">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Building2 className="size-4 text-emerald-600" />
-                      Organization Details
-                    </CardTitle>
-                    <CardDescription>Manage your organization&apos;s information</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Organization Name */}
-                    <div className="space-y-2">
-                      <Label htmlFor="orgName">Organization Name</Label>
-                      <Input
-                        id="orgName"
-                        defaultValue="GangNiaga Sdn Bhd"
-                        className="border-emerald-500/20 focus:border-emerald-500"
-                      />
-                    </div>
-
-                    {/* Industry */}
-                    <div className="space-y-2">
-                      <Label>Industry</Label>
-                      <Select defaultValue="saas">
-                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
-                          <SelectValue placeholder="Select industry" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="saas">SaaS / Software</SelectItem>
-                          <SelectItem value="fintech">Fintech</SelectItem>
-                          <SelectItem value="ecommerce">E-Commerce</SelectItem>
-                          <SelectItem value="healthcare">Healthcare</SelectItem>
-                          <SelectItem value="education">Education</SelectItem>
-                          <SelectItem value="manufacturing">Manufacturing</SelectItem>
-                          <SelectItem value="retail">Retail</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Company Size */}
-                    <div className="space-y-2">
-                      <Label>Company Size</Label>
-                      <Select defaultValue="11-50">
-                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
-                          <SelectValue placeholder="Select size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1-10">1–10 employees</SelectItem>
-                          <SelectItem value="11-50">11–50 employees</SelectItem>
-                          <SelectItem value="51-200">51–200 employees</SelectItem>
-                          <SelectItem value="201-500">201–500 employees</SelectItem>
-                          <SelectItem value="501-1000">501–1,000 employees</SelectItem>
-                          <SelectItem value="1000+">1,000+ employees</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Country */}
-                    <div className="space-y-2">
-                      <Label>Country</Label>
-                      <Select defaultValue="my">
-                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="my">Malaysia</SelectItem>
-                          <SelectItem value="sg">Singapore</SelectItem>
-                          <SelectItem value="id">Indonesia</SelectItem>
-                          <SelectItem value="th">Thailand</SelectItem>
-                          <SelectItem value="ph">Philippines</SelectItem>
-                          <SelectItem value="vn">Vietnam</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Slug */}
-                    <div className="space-y-2">
-                      <Label>Organization Slug</Label>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 rounded-md border border-emerald-500/20 bg-muted/40 px-3 py-2 text-sm text-muted-foreground font-mono">
-                          gangniaga-sdn-bhd
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          Auto-generated
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Used in URLs and API references</p>
-                    </div>
-
-                    {/* Save */}
-                    <div className="flex justify-end pt-2">
-                      <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
-                        <Save className="size-4" />
-                        Save
                       </Button>
                     </div>
                   </CardContent>
@@ -525,7 +666,6 @@ export function SettingsModule() {
                               : 'border-transparent hover:border-emerald-500/30'
                           }`}
                         >
-                          {/* Preview card */}
                           <div
                             className={`mx-auto mb-3 h-16 w-full rounded-lg border ${opt.preview} flex items-center justify-center`}
                           >
@@ -666,6 +806,7 @@ export function SettingsModule() {
                         >
                           {items.map((integration) => {
                             const isConnected = connectedIntegrations.has(integration.id);
+                            const isAccountingIntegration = category === 'accounting';
                             return (
                               <motion.div
                                 key={integration.id}
@@ -698,7 +839,26 @@ export function SettingsModule() {
                                         {isConnected ? 'Connected' : 'Available'}
                                       </Badge>
                                     </div>
-                                    <div className="mt-2">
+                                    <div className="mt-2 space-y-2">
+                                      {/* Sync Frequency (only for accounting integrations when connected) */}
+                                      {isAccountingIntegration && isConnected && (
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="size-3 text-muted-foreground" />
+                                          <Select
+                                            value={syncFrequencies[integration.id] || 'monthly'}
+                                            onValueChange={(v) => handleSyncFrequencyChange(integration.id, v as 'daily' | 'weekly' | 'monthly')}
+                                          >
+                                            <SelectTrigger className="h-6 text-[10px] w-[120px] border-emerald-500/20">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="daily">Daily</SelectItem>
+                                              <SelectItem value="weekly">Weekly</SelectItem>
+                                              <SelectItem value="monthly">Monthly</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      )}
                                       <Button
                                         size="sm"
                                         variant={isConnected ? 'outline' : 'default'}
@@ -738,6 +898,124 @@ export function SettingsModule() {
             {/* ── Notifications Tab ────────────────────────────────────────── */}
             {activeTab === 'notifications' && (
               <motion.div key="notifications" {...fadeIn} className="space-y-6 max-w-2xl">
+                {/* Variance Alerts */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <AlertTriangle className="size-4 text-amber-600" />
+                      Variance Alerts
+                    </CardTitle>
+                    <CardDescription>Configure when variance alerts are triggered</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Variance Alert Threshold</p>
+                          <p className="text-xs text-muted-foreground">Trigger alerts when actuals deviate from plan by this percentage</p>
+                        </div>
+                        <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/25 text-sm px-2.5 py-0.5">
+                          {varianceThreshold}%
+                        </Badge>
+                      </div>
+                      <Slider
+                        value={[varianceThreshold]}
+                        onValueChange={([v]) => setVarianceThreshold(v)}
+                        min={5}
+                        max={30}
+                        step={1}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>5% (Sensitive)</span>
+                        <span>30% (Tolerant)</span>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <Label>Alert Severity Filter</Label>
+                      <Select
+                        value={alertSeverityFilter}
+                        onValueChange={(v) => setAlertSeverityFilter(v as 'critical_only' | 'warning_and_above' | 'all')}
+                      >
+                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="critical_only">
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-rose-500" />
+                              Critical only
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="warning_and_above">
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-amber-500" />
+                              Warning & above
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="all">
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                              All alerts
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Only show alerts at or above the selected severity level</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Notification Channels */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Volume2 className="size-4 text-emerald-600" />
+                      Notification Channels
+                    </CardTitle>
+                    <CardDescription>Choose how you receive notifications</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center justify-center size-9 rounded-lg bg-emerald-500/10 flex-shrink-0 mt-0.5">
+                          <Mail className="size-4 text-emerald-600" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium">Email notifications</p>
+                          <p className="text-xs text-muted-foreground">Receive alerts via email</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={emailNotifications}
+                        onCheckedChange={setEmailNotifications}
+                        className="data-[state=checked]:bg-emerald-600"
+                      />
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center justify-center size-9 rounded-lg bg-amber-500/10 flex-shrink-0 mt-0.5">
+                          <Bell className="size-4 text-amber-600" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium">Push notifications</p>
+                          <p className="text-xs text-muted-foreground">Receive browser push notifications</p>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={pushNotifications}
+                        onCheckedChange={setPushNotifications}
+                        className="data-[state=checked]:bg-amber-600"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Notification Toggles */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
@@ -813,6 +1091,150 @@ export function SettingsModule() {
                     ))}
                   </CardContent>
                 </Card>
+
+                {/* Save */}
+                <div className="flex justify-end">
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    onClick={handleSaveNotifications}
+                  >
+                    <Save className="size-4" />
+                    Save Preferences
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── AI Model Tab ─────────────────────────────────────────────── */}
+            {activeTab === 'ai' && (
+              <motion.div key="ai" {...fadeIn} className="space-y-6 max-w-2xl">
+                {/* AI Model Selection */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Cpu className="size-4 text-emerald-600" />
+                      AI Model Configuration
+                    </CardTitle>
+                    <CardDescription>Configure which AI model powers your proposals and analysis</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <Label>Default AI Model</Label>
+                      <Select
+                        value={aiSettings.model}
+                        onValueChange={(v) => setAiSettings((prev) => ({ ...prev, model: v }))}
+                      >
+                        <SelectTrigger className="border-emerald-500/20 focus:border-emerald-500">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {AI_MODELS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>
+                              <div className="flex items-center gap-2">
+                                <Cpu className="size-3.5 text-muted-foreground" />
+                                <span>{m.label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">This model will be used for all AI-powered features unless overridden</p>
+                    </div>
+
+                    <Separator />
+
+                    {/* Response Verbosity */}
+                    <div className="space-y-3">
+                      <Label>Response Verbosity</Label>
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { value: 'concise' as const, label: 'Concise', desc: 'Brief, to-the-point', icon: <Zap className="size-4 text-cyan-600" /> },
+                          { value: 'balanced' as const, label: 'Balanced', desc: 'Moderate detail', icon: <Sparkles className="size-4 text-emerald-600" /> },
+                          { value: 'detailed' as const, label: 'Detailed', desc: 'Comprehensive analysis', icon: <FileText className="size-4 text-amber-600" /> },
+                        ].map((opt) => (
+                          <motion.button
+                            key={opt.value}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setAiSettings((prev) => ({ ...prev, verbosity: opt.value }))}
+                            className={`relative rounded-xl border-2 p-3 text-center transition-all ${
+                              aiSettings.verbosity === opt.value
+                                ? 'border-emerald-500 shadow-md shadow-emerald-500/10'
+                                : 'border-transparent hover:border-emerald-500/30 bg-muted/30'
+                            }`}
+                          >
+                            <div className="flex justify-center mb-2">{opt.icon}</div>
+                            <p className="text-sm font-medium">{opt.label}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                            {aiSettings.verbosity === opt.value && (
+                              <motion.div
+                                layoutId="verbosity-check"
+                                className="absolute -top-1.5 -right-1.5 flex items-center justify-center size-5 rounded-full bg-emerald-600 text-white"
+                              >
+                                <CheckCircle2 className="size-3" />
+                              </motion.div>
+                            )}
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Auto-generate sections */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Auto-generate sections</p>
+                        <p className="text-xs text-muted-foreground">
+                          Automatically generate proposal sections when a new proposal is created
+                        </p>
+                      </div>
+                      <Switch
+                        checked={aiSettings.autoGenerate}
+                        onCheckedChange={(checked) => setAiSettings((prev) => ({ ...prev, autoGenerate: checked }))}
+                        className="data-[state=checked]:bg-emerald-600"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* AI Usage Stats */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <BarChart3 className="size-4 text-amber-600" />
+                      AI Usage This Month
+                    </CardTitle>
+                    <CardDescription>Track your AI generation usage and remaining quota</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+                        <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">47</p>
+                        <p className="text-[10px] text-muted-foreground">Sections Generated</p>
+                      </div>
+                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-center">
+                        <p className="text-lg font-bold text-amber-700 dark:text-amber-400">12</p>
+                        <p className="text-[10px] text-muted-foreground">AI Rewrites</p>
+                      </div>
+                      <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3 text-center">
+                        <p className="text-lg font-bold text-cyan-700 dark:text-cyan-400">141</p>
+                        <p className="text-[10px] text-muted-foreground">Remaining Quota</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Save */}
+                <div className="flex justify-end">
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                    onClick={handleSaveAiSettings}
+                  >
+                    <Save className="size-4" />
+                    Save AI Settings
+                  </Button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

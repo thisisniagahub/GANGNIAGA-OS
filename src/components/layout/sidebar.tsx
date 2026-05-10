@@ -3,9 +3,7 @@
 import { useAppStore } from '@/lib/store';
 import type { ModuleId } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   LayoutDashboard,
@@ -16,7 +14,6 @@ import {
   Brain,
   BarChart3,
   Settings,
-  MessageSquare,
   ChevronLeft,
   ChevronRight,
   Sparkles,
@@ -26,6 +23,8 @@ import {
   GitCompareArrows,
   Presentation,
   Search,
+  PlusCircle,
+  FlaskConical,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -34,26 +33,74 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   accent: string;
+  badgeCount?: number;
 }
 
-const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, accent: 'text-emerald-500' },
-  { id: 'business-plans', label: 'Business Plans', icon: FileText, accent: 'text-amber-500' },
-  { id: 'financials', label: 'Financials', icon: LineChart, accent: 'text-teal-500' },
-  { id: 'plan-review', label: 'Plan Review', icon: Scale, accent: 'text-emerald-500' },
-  { id: 'agents', label: 'Agent Console', icon: Bot, accent: 'text-cyan-500' },
-  { id: 'workflows', label: 'Workflows', icon: Workflow, accent: 'text-rose-500' },
-  { id: 'memory', label: 'Memory Engine', icon: Brain, accent: 'text-amber-500' },
-  { id: 'reports', label: 'Reports', icon: BarChart3, accent: 'text-emerald-500' },
-  { id: 'plan-actuals', label: 'Plan vs Actuals', icon: GitCompareArrows, accent: 'text-cyan-500' },
-  { id: 'idea-canvas', label: 'Idea Canvas', icon: Lightbulb, accent: 'text-emerald-500' },
-  { id: 'pitch-deck', label: 'Pitch Deck', icon: Presentation, accent: 'text-teal-500' },
-  { id: 'research', label: 'Research Agent', icon: Search, accent: 'text-emerald-500' },
-  { id: 'settings', label: 'Settings', icon: Settings, accent: 'text-muted-foreground' },
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    title: 'Core',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, accent: 'text-emerald-500' },
+      { id: 'business-plans', label: 'Business Plans', icon: FileText, accent: 'text-amber-500' },
+      { id: 'financials', label: 'Financials', icon: LineChart, accent: 'text-teal-500' },
+    ],
+  },
+  {
+    title: 'Intelligence',
+    items: [
+      { id: 'idea-canvas', label: 'Idea Canvas', icon: Lightbulb, accent: 'text-emerald-500' },
+      { id: 'plan-review', label: 'Plan Review', icon: Scale, accent: 'text-emerald-500' },
+      { id: 'research', label: 'Research Agent', icon: Search, accent: 'text-emerald-500' },
+    ],
+  },
+  {
+    title: 'Automation',
+    items: [
+      { id: 'agents', label: 'Agent Console', icon: Bot, accent: 'text-cyan-500' },
+      { id: 'workflows', label: 'Workflows', icon: Workflow, accent: 'text-rose-500' },
+      { id: 'memory', label: 'Memory Engine', icon: Brain, accent: 'text-amber-500' },
+    ],
+  },
+  {
+    title: 'Output',
+    items: [
+      { id: 'pitch-deck', label: 'Pitch Deck', icon: Presentation, accent: 'text-teal-500' },
+      { id: 'reports', label: 'Reports', icon: BarChart3, accent: 'text-emerald-500' },
+      { id: 'plan-actuals', label: 'Plan vs Actuals', icon: GitCompareArrows, accent: 'text-cyan-500' },
+    ],
+  },
+  {
+    title: 'System',
+    items: [
+      { id: 'settings', label: 'Settings', icon: Settings, accent: 'text-muted-foreground' },
+    ],
+  },
 ];
 
 export default function Sidebar() {
-  const { activeModule, setActiveModule, sidebarCollapsed, toggleSidebar, toggleCopilot } = useAppStore();
+  const { activeModule, setActiveModule, sidebarCollapsed, toggleSidebar, toggleCopilot, plans, agents, varianceAlerts } = useAppStore();
+
+  // Compute badge counts from store
+  const plansCount = plans.length;
+  const runningAgentsCount = agents.filter(a => a.status === 'running').length;
+  const criticalAlertsCount = varianceAlerts.filter(a => a.severity === 'critical').length;
+
+  const badgeMap: Record<string, number> = {
+    'business-plans': plansCount,
+    'agents': runningAgentsCount,
+    'plan-actuals': criticalAlertsCount,
+  };
+
+  const badgeColorMap: Record<string, string> = {
+    'business-plans': 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    'agents': 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
+    'plan-actuals': 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  };
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -86,72 +133,152 @@ export default function Sidebar() {
           </AnimatePresence>
         </div>
 
-        {/* Nav Items */}
+        {/* Nav Items with Grouping */}
         <ScrollArea className="flex-1 py-3">
-          <nav className="space-y-1 px-3">
-            {navItems.map((item) => {
-              const isActive = activeModule === item.id;
-              const Icon = item.icon;
-
-              const button = (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveModule(item.id)}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200',
-                    'hover:bg-accent/50 group relative',
-                    isActive
-                      ? 'bg-accent text-accent-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground',
-                    sidebarCollapsed && 'justify-center px-0'
-                  )}
-                >
-                  {isActive && (
+          <nav className="px-3">
+            {navGroups.map((group, groupIdx) => (
+              <div key={group.title}>
+                {/* Section Header */}
+                <AnimatePresence>
+                  {!sidebarCollapsed && (
                     <motion.div
-                      layoutId="activeIndicator"
-                      className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-emerald-500 to-teal-500"
-                      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                    />
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12 }}
+                      className={cn(
+                        'px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60',
+                        groupIdx === 0 && 'pt-1'
+                      )}
+                    >
+                      {group.title}
+                    </motion.div>
                   )}
-                  <Icon className={cn(
-                    'h-[18px] w-[18px] shrink-0 transition-colors',
-                    isActive ? item.accent : 'group-hover:text-foreground'
-                  )} />
-                  <AnimatePresence>
-                    {!sidebarCollapsed && (
-                      <motion.span
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        className="whitespace-nowrap overflow-hidden"
+                </AnimatePresence>
+
+                {/* Collapsed: thin separator between groups */}
+                {sidebarCollapsed && groupIdx > 0 && (
+                  <div className="my-2 mx-2 border-t border-border/50" />
+                )}
+
+                {/* Nav Items */}
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const isActive = activeModule === item.id;
+                    const Icon = item.icon;
+                    const badge = badgeMap[item.id];
+                    const badgeColor = badgeColorMap[item.id] || 'bg-muted text-muted-foreground';
+
+                    const button = (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveModule(item.id)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                          'group relative',
+                          isActive
+                            ? 'bg-emerald-500/8 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-l-[3px] border-l-emerald-500 pl-[9px]'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+                          sidebarCollapsed && 'justify-center px-0 border-l-0 pl-0'
+                        )}
                       >
-                        {item.label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </button>
-              );
+                        {isActive && sidebarCollapsed && (
+                          <motion.div
+                            layoutId="activeIndicatorCollapsed"
+                            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-emerald-500 to-teal-500"
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                          />
+                        )}
+                        <Icon className={cn(
+                          'h-[18px] w-[18px] shrink-0 transition-colors',
+                          isActive ? item.accent : 'group-hover:text-foreground'
+                        )} />
+                        <AnimatePresence>
+                          {!sidebarCollapsed && (
+                            <motion.span
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -10 }}
+                              className="whitespace-nowrap overflow-hidden flex-1 text-left"
+                            >
+                              {item.label}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                        {/* Badge */}
+                        {badge > 0 && !sidebarCollapsed && (
+                          <span className={cn(
+                            'ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
+                            badgeColor
+                          )}>
+                            {badge}
+                          </span>
+                        )}
+                        {/* Badge in collapsed mode - dot indicator */}
+                        {badge > 0 && sidebarCollapsed && (
+                          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-500" />
+                        )}
+                      </button>
+                    );
 
-              if (sidebarCollapsed) {
-                return (
-                  <Tooltip key={item.id}>
-                    <TooltipTrigger asChild>
-                      {button}
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="font-medium">
-                      {item.label}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
+                    if (sidebarCollapsed) {
+                      return (
+                        <Tooltip key={item.id}>
+                          <TooltipTrigger asChild>
+                            {button}
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="font-medium">
+                            {item.label}
+                            {badge > 0 && (
+                              <span className="ml-1.5 text-[10px] font-bold text-amber-500">({badge})</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
 
-              return button;
-            })}
+                    return button;
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
         </ScrollArea>
 
         {/* Bottom Section */}
         <div className="border-t border-border p-3 space-y-2">
+          {/* Quick Action Buttons */}
+          <AnimatePresence>
+            {!sidebarCollapsed && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.15 }}
+                className="flex gap-2"
+              >
+                <button
+                  onClick={() => setActiveModule('business-plans')}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold
+                    bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20
+                    hover:bg-emerald-500/20 transition-all"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  New Proposal
+                </button>
+                <button
+                  onClick={() => setActiveModule('idea-canvas')}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold
+                    bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20
+                    hover:bg-amber-500/20 transition-all"
+                >
+                  <FlaskConical className="h-3.5 w-3.5" />
+                  Validate Idea
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* AI Copilot Button */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -172,16 +299,22 @@ export default function Sidebar() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -10 }}
-                      className="whitespace-nowrap"
+                      className="whitespace-nowrap flex-1 text-left"
                     >
                       AI Copilot
                     </motion.span>
                   )}
                 </AnimatePresence>
+                {/* ⌘K Badge */}
+                {!sidebarCollapsed && (
+                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-emerald-500/20 bg-emerald-500/5 px-1.5 font-mono text-[10px] font-medium text-emerald-500/70">
+                    ⌘K
+                  </kbd>
+                )}
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="font-medium">
-              AI Copilot
+              AI Copilot (⌘K)
             </TooltipContent>
           </Tooltip>
 

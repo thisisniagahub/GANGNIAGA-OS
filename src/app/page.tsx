@@ -17,6 +17,7 @@ import PitchDeckModule from '@/components/modules/pitch-deck';
 import IdeaCanvasModule from '@/components/modules/idea-canvas';
 import PlanReviewModule from '@/components/modules/plan-review';
 import ResearchModule from '@/components/modules/research';
+import CommandPalette from '@/components/layout/command-palette';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const moduleComponents: Record<string, React.ComponentType> = {
@@ -67,6 +68,9 @@ export default function GangNiagaAIOS() {
       <AnimatePresence>
         {copilotOpen && <CopilotPanel />}
       </AnimatePresence>
+
+      {/* Command Palette (Cmd+K) */}
+      <CommandPalette />
     </div>
   );
 }

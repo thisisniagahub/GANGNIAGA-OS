@@ -66,6 +66,39 @@ interface AppState {
 
   // ── NEW: Citations ──
   citations: CitationData[];
+
+  // ── CRUD for Plans ──
+  updatePlan: (id: string, updates: Partial<BusinessPlanData>) => void;
+  deletePlan: (id: string) => void;
+
+  // ── CRUD for Reports ──
+  addReport: (report: ReportData) => void;
+  updateReport: (id: string, updates: Partial<ReportData>) => void;
+
+  // ── CRUD for Workflows ──
+  addWorkflow: (workflow: WorkflowInfo) => void;
+  updateWorkflow: (id: string, updates: Partial<WorkflowInfo>) => void;
+
+  // ── CRUD for Agents ──
+  addAgent: (agent: AgentInfo) => void;
+  updateAgent: (id: string, updates: Partial<AgentInfo>) => void;
+
+  // ── CRUD for Plan Actuals ──
+  addPlanActual: (data: PlanActualData) => void;
+  updatePlanActual: (id: string, updates: Partial<PlanActualData>) => void;
+
+  // ── CRUD for Integrations ──
+  updateIntegration: (type: string, updates: Partial<IntegrationData>) => void;
+
+  // ── CRUD for Pitch Decks ──
+  updatePitchDeck: (id: string, updates: Partial<PitchDeckData>) => void;
+  deletePitchDeck: (id: string) => void;
+
+  // ── CRUD for Plan Reviews ──
+  addPlanReview: (review: PlanReviewData) => void;
+
+  // ── Connected Financial Model ──
+  updateFinancialAssumption: (key: string, value: number) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -139,7 +172,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedAgent: (id) => set({ selectedAgent: id }),
   agentTasks: [
     { id: '1', type: 'Market Analysis', status: 'completed', input: 'Analyze SaaS market trends Q4 2024', output: 'Market analysis complete. SaaS growth rate at 18% YoY...', duration: 12, createdAt: '10:30 AM' },
-    { id: '2', type: 'Financial Forecast', status: 'completed', input: 'Generate Q1 2025 revenue forecast', output: 'Based on current trajectory, Q1 revenue projected at $920K...', duration: 8, createdAt: '10:45 AM' },
+    { id: '2', type: 'Financial Forecast', status: 'completed', input: 'Generate Q1 2025 revenue forecast', output: 'Based on current trajectory, Q1 revenue projected at RM920K...', duration: 8, createdAt: '10:45 AM' },
     { id: '3', type: 'Competitor Research', status: 'running', input: 'Monitor competitor pricing changes', output: undefined, duration: undefined, createdAt: '11:00 AM' },
     { id: '4', type: 'KPI Report', status: 'pending', input: 'Generate weekly KPI summary', output: undefined, duration: undefined, createdAt: '11:15 AM' },
     { id: '5', type: 'Citation Verification', status: 'running', input: 'Verify market data sources for bank proposal', output: undefined, duration: undefined, createdAt: '11:20 AM' },
@@ -441,4 +474,86 @@ export const useAppStore = create<AppState>((set) => ({
     { id: 'c9', source: 'OECD — SME and Entrepreneurship Outlook', url: 'https://oecd.org/sme-outlook', type: 'benchmark', geography: 'Global', datePublished: '2024-04', dataPoint: 'SME digitalization benchmark: 45% adoption rate', verified: true, createdAt: '2024-01-14' },
     { id: 'c10', source: 'IDC — ASEAN Cloud and AI Survey', url: 'https://idc.com/asean-cloud-ai', type: 'industry_report', geography: 'SEA', datePublished: '2024-07', dataPoint: 'Indonesia MSME market: 64M entities, growing 12% annually', verified: true, createdAt: '2024-01-14' },
   ],
+
+  // ── CRUD for Plans ──
+  updatePlan: (id, updates) => set((s) => ({
+    plans: s.plans.map((p) => p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString().split('T')[0] } : p),
+  })),
+
+  deletePlan: (id) => set((s) => ({
+    plans: s.plans.filter((p) => p.id !== id),
+    selectedPlan: s.selectedPlan === id ? null : s.selectedPlan,
+  })),
+
+  // ── CRUD for Reports ──
+  addReport: (report) => set((s) => ({
+    reports: [...s.reports, report],
+  })),
+
+  updateReport: (id, updates) => set((s) => ({
+    reports: s.reports.map((r) => r.id === id ? { ...r, ...updates } : r),
+  })),
+
+  // ── CRUD for Workflows ──
+  addWorkflow: (workflow) => set((s) => ({
+    workflows: [...s.workflows, workflow],
+  })),
+
+  updateWorkflow: (id, updates) => set((s) => ({
+    workflows: s.workflows.map((w) => w.id === id ? { ...w, ...updates } : w),
+  })),
+
+  // ── CRUD for Agents ──
+  addAgent: (agent) => set((s) => ({
+    agents: [...s.agents, agent],
+  })),
+
+  updateAgent: (id, updates) => set((s) => ({
+    agents: s.agents.map((a) => a.id === id ? { ...a, ...updates } : a),
+  })),
+
+  // ── CRUD for Plan Actuals ──
+  addPlanActual: (data) => set((s) => ({
+    planActuals: [...s.planActuals, data],
+  })),
+
+  updatePlanActual: (id, updates) => set((s) => ({
+    planActuals: s.planActuals.map((pa) => pa.id === id ? { ...pa, ...updates } : pa),
+  })),
+
+  // ── CRUD for Integrations ──
+  updateIntegration: (type, updates) => set((s) => ({
+    integrations: s.integrations.map((i) => i.type === type ? { ...i, ...updates } : i),
+  })),
+
+  // ── CRUD for Pitch Decks ──
+  updatePitchDeck: (id, updates) => set((s) => ({
+    pitchDecks: s.pitchDecks.map((d) => d.id === id ? { ...d, ...updates } : d),
+  })),
+
+  deletePitchDeck: (id) => set((s) => ({
+    pitchDecks: s.pitchDecks.filter((d) => d.id !== id),
+    selectedDeck: s.selectedDeck === id ? null : s.selectedDeck,
+  })),
+
+  // ── CRUD for Plan Reviews ──
+  addPlanReview: (review) => set((s) => ({
+    planReviews: [...s.planReviews, review],
+  })),
+
+  // ── Connected Financial Model ──
+  updateFinancialAssumption: (key, value) => set((s) => {
+    const updatedKpis = s.kpis.map((kpi) => {
+      if (kpi.metric.toLowerCase().includes(key.toLowerCase())) {
+        return {
+          ...kpi,
+          value,
+          change: ((value - kpi.previousValue) / kpi.previousValue) * 100,
+          trend: (value > kpi.previousValue ? 'up' : 'down') as 'up' | 'down' | 'neutral',
+        };
+      }
+      return kpi;
+    });
+    return { kpis: updatedKpis };
+  }),
 }));

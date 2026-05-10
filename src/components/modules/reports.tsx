@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -23,6 +35,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import {
   FileText,
   Download,
@@ -39,8 +54,16 @@ import {
   Loader2,
   Sparkles,
   Send,
+  Trash2,
+  Shield,
+  TrendingUp,
+  AlertTriangle,
+  DollarSign,
+  Users,
+  Target,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import type { ReportData } from '@/lib/types';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -156,17 +179,63 @@ function formatDate(dateStr: string) {
   }
 }
 
+// ─── Section options for report generation ──────────────────────────────────
+const SECTION_OPTIONS = [
+  { id: 'executive_summary', label: 'Executive Summary', defaultChecked: true },
+  { id: 'financial_overview', label: 'Financial Overview', defaultChecked: true },
+  { id: 'kpi_dashboard', label: 'KPI Dashboard', defaultChecked: true },
+  { id: 'market_analysis', label: 'Market Analysis', defaultChecked: false },
+  { id: 'risk_assessment', label: 'Risk Assessment', defaultChecked: false },
+];
+
+// ─── Simulated Report Preview Content ───────────────────────────────────────
+function getSimulatedPreview(report: ReportData) {
+  const typeLabel = TYPE_CONFIG[report.type]?.label ?? report.type;
+  return {
+    sections: [
+      {
+        title: 'Executive Summary',
+        content: `This ${typeLabel} report provides a comprehensive overview of GangNiaga AI OS performance for the reporting period. Key highlights include strong MRR growth of 11.1% month-over-month, maintaining a healthy DSCR of 1.45x, and continued expansion in the ASEAN SME market. The company is on track to achieve break-even by Q3 2025.`,
+      },
+      {
+        title: 'Financial Overview',
+        content: `Revenue: RM284,500 (vs target RM300,000)\nBurn Rate: RM187,200/month (down 4% from RM195,000)\nRunway: 18 months (up from 15 months)\nMRR: RM142,800 | ARR: RM1,713,600\nGross Margin: 82% (above 70% benchmark)\nCash Position: RM1,680,000`,
+      },
+      {
+        title: 'KPI Dashboard',
+        content: `• Monthly Revenue Growth: +11.1% ✓\n• MRR Growth: +11.1% ✓\n• Burn Rate Reduction: -4.0% ✓\n• DSCR: 1.45x (target 1.50x) △\n• Customer Churn: 3.2% (benchmark 2.5%) △\n• LTV:CAC Ratio: 7.5:1 (benchmark 3.0:1) ✓`,
+      },
+      {
+        title: 'Recommendations',
+        content: `1. Accelerate enterprise sales to close DSCR gap (1.45x → 1.50x)\n2. Implement churn reduction program targeting < 2.5%\n3. Begin Indonesia market entry preparation for Q2 2025\n4. Pursue SOC2 certification to unlock enterprise pipeline`,
+      },
+    ],
+  };
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function ReportsModule() {
-  const { reports } = useAppStore();
+  const { reports, addReport, updateReport } = useAppStore();
   const [filter, setFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<ReportType | ''>('');
   const [newFormat, setNewFormat] = useState<ReportFormat | ''>('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateRange, setDateRange] = useState('last_month');
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
+  const [selectedSections, setSelectedSections] = useState<string[]>(
+    SECTION_OPTIONS.filter((s) => s.defaultChecked).map((s) => s.id)
+  );
+  const [generatingProgress, setGeneratingProgress] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // ─── Preview Dialog ────────────────────────────────────────────
+  const [previewReport, setPreviewReport] = useState<ReportData | null>(null);
+
+  // ─── Delete Confirmation ───────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<ReportData | null>(null);
 
   const filteredReports =
     filter === 'all' ? reports : reports.filter((r) => r.type === filter);
@@ -175,15 +244,131 @@ export function ReportsModule() {
   const generatingCount = reports.filter((r) => r.status === 'generating').length;
   const failedCount = reports.filter((r) => r.status === 'failed').length;
 
-  const handleGenerate = () => {
+  // ─── Toggle section checkbox ────────────────────────────────────
+  const toggleSection = useCallback((sectionId: string) => {
+    setSelectedSections((prev) =>
+      prev.includes(sectionId)
+        ? prev.filter((id) => id !== sectionId)
+        : [...prev, sectionId]
+    );
+  }, []);
+
+  // ─── Handle Generate Report ─────────────────────────────────────
+  const handleGenerate = useCallback(() => {
+    if (!newTitle.trim()) {
+      toast.error('Please enter a report title');
+      return;
+    }
+    if (!newType) {
+      toast.error('Please select a report type');
+      return;
+    }
+    if (!newFormat) {
+      toast.error('Please select a format');
+      return;
+    }
+
+    // Close dialog and start generation simulation
+    setDialogOpen(false);
+    setIsGenerating(true);
+    setGeneratingProgress(0);
+
+    // Create report with "generating" status
+    const reportId = `rpt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newReport: ReportData = {
+      id: reportId,
+      title: newTitle.trim(),
+      type: newType as ReportType,
+      status: 'generating',
+      format: newFormat as ReportFormat,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    addReport(newReport);
+
+    // Simulate progress
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress += Math.random() * 15 + 5;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(progressInterval);
+      }
+      setGeneratingProgress(Math.min(progress, 100));
+    }, 300);
+
+    // Complete after 3 seconds
+    setTimeout(() => {
+      clearInterval(progressInterval);
+      setGeneratingProgress(100);
+      updateReport(reportId, { status: 'completed' });
+      setIsGenerating(false);
+      toast.success(`"${newTitle.trim()}" report generated successfully`);
+    }, 3000);
+
     // Reset form
     setNewTitle('');
     setNewType('');
     setNewFormat('');
-    setDateFrom('');
-    setDateTo('');
-    setDialogOpen(false);
-  };
+    setDateRange('last_month');
+    setCustomDateFrom('');
+    setCustomDateTo('');
+    setSelectedSections(SECTION_OPTIONS.filter((s) => s.defaultChecked).map((s) => s.id));
+  }, [newTitle, newType, newFormat, addReport, updateReport]);
+
+  // ─── Handle Download ────────────────────────────────────────────
+  const handleDownload = useCallback((report: ReportData) => {
+    const preview = getSimulatedPreview(report);
+    let content = '';
+
+    switch (report.format) {
+      case 'csv':
+        content = 'Section,Content\n' +
+          preview.sections.map((s) => `"${s.title}","${s.content.replace(/\n/g, ' ')}"`).join('\n');
+        break;
+      case 'xlsx':
+      case 'docx':
+        content = preview.sections
+          .map((s) => `${'='.repeat(60)}\n${s.title}\n${'='.repeat(60)}\n${s.content}`)
+          .join('\n\n');
+        break;
+      default: // pdf
+        content = `${report.title}\n${'='.repeat(60)}\nGenerated: ${formatDate(report.createdAt)}\nFormat: ${report.format.toUpperCase()}\nType: ${TYPE_CONFIG[report.type]?.label ?? report.type}\n\n` +
+          preview.sections
+            .map((s) => `${'─'.repeat(40)}\n${s.title}\n${'─'.repeat(40)}\n${s.content}`)
+            .join('\n\n');
+    }
+
+    const mimeType = report.format === 'csv' ? 'text/csv' : 'text/plain';
+    const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${report.title.replace(/\s+/g, '-').toLowerCase()}.${report.format}`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Report downloaded as ${report.format.toUpperCase()}`);
+  }, []);
+
+  // ─── Handle Delete ──────────────────────────────────────────────
+  const handleDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    useAppStore.setState((s) => ({
+      reports: s.reports.filter((r) => r.id !== deleteTarget.id),
+    }));
+    toast.success(`"${deleteTarget.title}" deleted`);
+    setDeleteTarget(null);
+  }, [deleteTarget]);
+
+  // ─── Handle Regenerate ──────────────────────────────────────────
+  const handleRegenerate = useCallback((report: ReportData) => {
+    updateReport(report.id, { status: 'generating' });
+    toast.info(`Regenerating "${report.title}"...`);
+
+    setTimeout(() => {
+      updateReport(report.id, { status: 'completed' });
+      toast.success(`"${report.title}" regenerated successfully`);
+    }, 3000);
+  }, [updateReport]);
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -222,18 +407,21 @@ export function ReportsModule() {
                 Generate Report
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[480px]">
+            <DialogContent className="sm:max-w-[520px]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <FileText className="size-5 text-emerald-600" />
+                  <Sparkles className="size-5 text-emerald-600" />
                   Generate New Report
                 </DialogTitle>
+                <DialogDescription>
+                  Configure your report settings and generate with AI assistance
+                </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 pt-2">
                 {/* Report Title */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Report Title</label>
+                  <Label>Report Title</Label>
                   <Input
                     placeholder="e.g. Q1 2025 Investor Update"
                     value={newTitle}
@@ -243,7 +431,7 @@ export function ReportsModule() {
 
                 {/* Report Type */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Report Type</label>
+                  <Label>Report Type</Label>
                   <Select value={newType} onValueChange={(v) => setNewType(v as ReportType)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select report type" />
@@ -267,7 +455,7 @@ export function ReportsModule() {
 
                 {/* Format */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Format</label>
+                  <Label>Format</Label>
                   <Select value={newFormat} onValueChange={(v) => setNewFormat(v as ReportFormat)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select format" />
@@ -287,20 +475,52 @@ export function ReportsModule() {
 
                 {/* Date Range */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Date Range</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      placeholder="From"
-                    />
-                    <Input
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      placeholder="To"
-                    />
+                  <Label>Date Range</Label>
+                  <Select value={dateRange} onValueChange={setDateRange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="last_month">Last Month</SelectItem>
+                      <SelectItem value="last_quarter">Last Quarter</SelectItem>
+                      <SelectItem value="last_year">Last Year</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {dateRange === 'custom' && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <Input
+                        type="date"
+                        value={customDateFrom}
+                        onChange={(e) => setCustomDateFrom(e.target.value)}
+                        placeholder="From"
+                      />
+                      <Input
+                        type="date"
+                        value={customDateTo}
+                        onChange={(e) => setCustomDateTo(e.target.value)}
+                        placeholder="To"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Include Sections */}
+                <div className="space-y-3">
+                  <Label>Include Sections</Label>
+                  <div className="space-y-2">
+                    {SECTION_OPTIONS.map((section) => (
+                      <div key={section.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={section.id}
+                          checked={selectedSections.includes(section.id)}
+                          onCheckedChange={() => toggleSection(section.id)}
+                        />
+                        <Label htmlFor={section.id} className="text-sm font-normal cursor-pointer">
+                          {section.label}
+                        </Label>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -315,7 +535,11 @@ export function ReportsModule() {
                     <Sparkles className="size-4" />
                     Generate with AI
                   </Button>
-                  <Button variant="outline" className="flex-1 gap-1.5" onClick={handleGenerate}>
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    onClick={handleGenerate}
+                  >
                     <FileText className="size-4" />
                     Generate
                   </Button>
@@ -325,6 +549,30 @@ export function ReportsModule() {
           </Dialog>
         </div>
       </div>
+
+      {/* ── Generation Progress Bar ─────────────────────────────────── */}
+      <AnimatePresence>
+        {isGenerating && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <Card className="border-amber-500/30 bg-amber-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-600">Generating report with AI...</p>
+                    <Progress value={generatingProgress} className="mt-2 h-2 [&>div]:bg-amber-500" />
+                  </div>
+                  <span className="text-sm font-bold text-amber-600">{generatingProgress.toFixed(0)}%</span>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Report Type Filter ──────────────────────────────────────────── */}
       <Tabs value={filter} onValueChange={setFilter} className="w-full">
@@ -355,7 +603,7 @@ export function ReportsModule() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Reports Grid (shared across all tab values) ─────────────── */}
+        {/* ── Reports Grid ───────────────────────────────────────────── */}
         <TabsContent value={filter} className="mt-4">
           {filteredReports.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -370,11 +618,19 @@ export function ReportsModule() {
               </p>
             </div>
           ) : (
-            <ScrollArea className="h-[calc(100vh-280px)]">
+            <ScrollArea className="h-[calc(100vh-320px)]">
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
                 <AnimatePresence mode="popLayout">
                   {filteredReports.map((report, i) => (
-                    <ReportCard key={report.id} report={report} index={i} />
+                    <ReportCard
+                      key={report.id}
+                      report={report}
+                      index={i}
+                      onPreview={setPreviewReport}
+                      onDownload={handleDownload}
+                      onDelete={setDeleteTarget}
+                      onRegenerate={handleRegenerate}
+                    />
                   ))}
                 </AnimatePresence>
               </div>
@@ -382,13 +638,127 @@ export function ReportsModule() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* ── Report Preview Dialog ────────────────────────────────────── */}
+      <Dialog open={!!previewReport} onOpenChange={(open) => !open && setPreviewReport(null)}>
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="size-5 text-emerald-600" />
+              Report Preview
+            </DialogTitle>
+            <DialogDescription>{previewReport?.title}</DialogDescription>
+          </DialogHeader>
+
+          {previewReport && (
+            <ScrollArea className="max-h-[60vh]">
+              <div className="space-y-5 py-2 pr-2">
+                {/* Report Header */}
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    {TYPE_CONFIG[previewReport.type] && (
+                      <Badge variant="outline" className={`text-xs ${TYPE_CONFIG[previewReport.type].badgeClass}`}>
+                        {TYPE_CONFIG[previewReport.type].label}
+                      </Badge>
+                    )}
+                    {getFormatBadge(previewReport.format)}
+                    {getStatusBadge(previewReport.status)}
+                  </div>
+                  <h3 className="text-lg font-bold">{previewReport.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Generated: {formatDate(previewReport.createdAt)}
+                  </p>
+                </div>
+
+                {/* Simulated Report Sections */}
+                {getSimulatedPreview(previewReport).sections.map((section, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="space-y-2"
+                  >
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      {section.title}
+                    </h4>
+                    <p className="text-sm text-muted-foreground whitespace-pre-line pl-4 leading-relaxed">
+                      {section.content}
+                    </p>
+                    {idx < getSimulatedPreview(previewReport).sections.length - 1 && (
+                      <Separator className="mt-3" />
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPreviewReport(null)}>
+              Close
+            </Button>
+            {previewReport && previewReport.status === 'completed' && (
+              <Button
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => {
+                  handleDownload(previewReport);
+                  setPreviewReport(null);
+                }}
+              >
+                <Download className="size-4" />
+                Download {previewReport.format.toUpperCase()}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirmation Dialog ────────────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-rose-500" />
+              Delete Report
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{deleteTarget?.title}&quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
 // ─── Report Card Sub-component ──────────────────────────────────────────────
 
-function ReportCard({ report, index }: { report: ReportData; index: number }) {
+function ReportCard({
+  report,
+  index,
+  onPreview,
+  onDownload,
+  onDelete,
+  onRegenerate,
+}: {
+  report: ReportData;
+  index: number;
+  onPreview: (report: ReportData) => void;
+  onDownload: (report: ReportData) => void;
+  onDelete: (report: ReportData) => void;
+  onRegenerate: (report: ReportData) => void;
+}) {
   const cfg = TYPE_CONFIG[report.type];
   const TypeIcon = cfg.icon;
 
@@ -456,15 +826,17 @@ function ReportCard({ report, index }: { report: ReportData; index: number }) {
               size="sm"
               className="h-8 gap-1.5 text-xs flex-1 hover:bg-emerald-500/10 hover:text-emerald-600"
               disabled={report.status !== 'completed'}
+              onClick={() => onPreview(report)}
             >
               <Eye className="size-3.5" />
-              View
+              Preview
             </Button>
             <Button
               variant="ghost"
               size="sm"
               className="h-8 gap-1.5 text-xs flex-1 hover:bg-emerald-500/10 hover:text-emerald-600"
               disabled={report.status !== 'completed'}
+              onClick={() => onDownload(report)}
             >
               <Download className="size-3.5" />
               Download
@@ -473,9 +845,18 @@ function ReportCard({ report, index }: { report: ReportData; index: number }) {
               variant="ghost"
               size="sm"
               className="h-8 gap-1.5 text-xs flex-1 hover:bg-amber-500/10 hover:text-amber-600"
+              onClick={() => onRegenerate(report)}
             >
               <RefreshCw className="size-3.5" />
               Regenerate
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-xs hover:bg-rose-500/10 hover:text-rose-600"
+              onClick={() => onDelete(report)}
+            >
+              <Trash2 className="size-3.5" />
             </Button>
           </div>
         </CardContent>

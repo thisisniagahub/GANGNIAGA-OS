@@ -103,12 +103,12 @@ const PIE_COLORS = [
 // ─── Formatting Helpers ───
 function formatCurrency(value: number): string {
   if (Math.abs(value) >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`;
+    return `RM${(value / 1_000_000).toFixed(1)}M`;
   }
   if (Math.abs(value) >= 1_000) {
-    return `$${(value / 1_000).toFixed(1)}K`;
+    return `RM${(value / 1_000).toFixed(1)}K`;
   }
-  return `$${value.toFixed(0)}`;
+  return `RM${value.toFixed(0)}`;
 }
 
 function formatRM(value: number): string {
@@ -126,9 +126,9 @@ function formatPercent(value: number): string {
 }
 
 function formatFullCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-MY', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'MYR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
@@ -199,58 +199,58 @@ const revenueBreakdown = [
 
 // ─── P&L Data (enhanced with DSCR row) ───
 const plData = [
-  { label: 'Revenue', values: ['SaaS Subscriptions', '$178.5K', '62.7%'], bold: true, indent: false },
-  { label: '', values: ['Professional Services', '$63.2K', '22.2%'], bold: false, indent: true },
-  { label: '', values: ['Custom Integrations', '$42.8K', '15.1%'], bold: false, indent: true },
-  { label: 'Total Revenue', values: ['', '$284.5K', '100%'], bold: true, indent: false },
-  { label: 'Cost of Revenue', values: ['', '($42.7K)', '15.0%'], bold: true, indent: false },
-  { label: 'Gross Profit', values: ['', '$241.8K', '85.0%'], bold: true, indent: false },
-  { label: 'Operating Expenses', values: ['Payroll', '($85.0K)', '29.9%'], bold: true, indent: false },
-  { label: '', values: ['Infrastructure', '($32.0K)', '11.2%'], bold: false, indent: true },
-  { label: '', values: ['Marketing', '($28.0K)', '9.8%'], bold: false, indent: true },
-  { label: '', values: ['Operations', '($22.0K)', '7.7%'], bold: false, indent: true },
-  { label: '', values: ['R&D', '($15.0K)', '5.3%'], bold: false, indent: true },
-  { label: 'Total Expenses', values: ['', '($187.2K)', '65.8%'], bold: true, indent: false },
-  { label: 'Operating Income', values: ['', '$54.6K', '19.2%'], bold: true, indent: false },
-  { label: 'Net Profit', values: ['', '$97.3K', '34.2%'], bold: true, indent: false },
+  { label: 'Revenue', values: ['SaaS Subscriptions', 'RM178.5K', '62.7%'], bold: true, indent: false },
+  { label: '', values: ['Professional Services', 'RM63.2K', '22.2%'], bold: false, indent: true },
+  { label: '', values: ['Custom Integrations', 'RM42.8K', '15.1%'], bold: false, indent: true },
+  { label: 'Total Revenue', values: ['', 'RM284.5K', '100%'], bold: true, indent: false },
+  { label: 'Cost of Revenue', values: ['', '(RM42.7K)', '15.0%'], bold: true, indent: false },
+  { label: 'Gross Profit', values: ['', 'RM241.8K', '85.0%'], bold: true, indent: false },
+  { label: 'Operating Expenses', values: ['Payroll', '(RM85.0K)', '29.9%'], bold: true, indent: false },
+  { label: '', values: ['Infrastructure', '(RM32.0K)', '11.2%'], bold: false, indent: true },
+  { label: '', values: ['Marketing', '(RM28.0K)', '9.8%'], bold: false, indent: true },
+  { label: '', values: ['Operations', '(RM22.0K)', '7.7%'], bold: false, indent: true },
+  { label: '', values: ['R&D', '(RM15.0K)', '5.3%'], bold: false, indent: true },
+  { label: 'Total Expenses', values: ['', '(RM187.2K)', '65.8%'], bold: true, indent: false },
+  { label: 'Operating Income', values: ['', 'RM54.6K', '19.2%'], bold: true, indent: false },
+  { label: 'Net Profit', values: ['', 'RM97.3K', '34.2%'], bold: true, indent: false },
   { label: 'DSCR', values: ['Net Operating Income / Debt Obligations', '1.45x', ''], bold: true, indent: false },
 ];
 
 // ─── Balance Sheet Data ───
 const balanceSheetData = [
   { label: 'Assets', values: ['Current Assets', '', ''], bold: true, indent: false },
-  { label: '', values: ['Cash & Equivalents', '$1,680K', ''], bold: false, indent: true },
-  { label: '', values: ['Accounts Receivable', '$142K', ''], bold: false, indent: true },
-  { label: '', values: ['Other Current Assets', '$38K', ''], bold: false, indent: true },
-  { label: '', values: ['Total Current Assets', '$1,860K', ''], bold: true, indent: false },
-  { label: '', values: ['Non-Current Assets', '$245K', ''], bold: true, indent: false },
-  { label: 'Total Assets', values: ['', '$2,105K', ''], bold: true, indent: false },
+  { label: '', values: ['Cash & Equivalents', 'RM1,680K', ''], bold: false, indent: true },
+  { label: '', values: ['Accounts Receivable', 'RM142K', ''], bold: false, indent: true },
+  { label: '', values: ['Other Current Assets', 'RM38K', ''], bold: false, indent: true },
+  { label: '', values: ['Total Current Assets', 'RM1,860K', ''], bold: true, indent: false },
+  { label: '', values: ['Non-Current Assets', 'RM245K', ''], bold: true, indent: false },
+  { label: 'Total Assets', values: ['', 'RM2,105K', ''], bold: true, indent: false },
   { label: 'Liabilities', values: ['Current Liabilities', '', ''], bold: true, indent: false },
-  { label: '', values: ['Accounts Payable', '$67K', ''], bold: false, indent: true },
-  { label: '', values: ['Deferred Revenue', '$124K', ''], bold: false, indent: true },
-  { label: '', values: ['Total Current Liabilities', '$191K', ''], bold: true, indent: false },
-  { label: '', values: ['Long-term Liabilities', '$85K', ''], bold: true, indent: false },
-  { label: 'Total Liabilities', values: ['', '$276K', ''], bold: true, indent: false },
-  { label: 'Equity', values: ['Common Stock', '$2,500K', ''], bold: true, indent: false },
-  { label: '', values: ['Retained Earnings', '($671K)', ''], bold: false, indent: true },
-  { label: 'Total Equity', values: ['', '$1,829K', ''], bold: true, indent: false },
-  { label: 'Liabilities + Equity', values: ['', '$2,105K', ''], bold: true, indent: false },
+  { label: '', values: ['Accounts Payable', 'RM67K', ''], bold: false, indent: true },
+  { label: '', values: ['Deferred Revenue', 'RM124K', ''], bold: false, indent: true },
+  { label: '', values: ['Total Current Liabilities', 'RM191K', ''], bold: true, indent: false },
+  { label: '', values: ['Long-term Liabilities', 'RM85K', ''], bold: true, indent: false },
+  { label: 'Total Liabilities', values: ['', 'RM276K', ''], bold: true, indent: false },
+  { label: 'Equity', values: ['Common Stock', 'RM2,500K', ''], bold: true, indent: false },
+  { label: '', values: ['Retained Earnings', '(RM671K)', ''], bold: false, indent: true },
+  { label: 'Total Equity', values: ['', 'RM1,829K', ''], bold: true, indent: false },
+  { label: 'Liabilities + Equity', values: ['', 'RM2,105K', ''], bold: true, indent: false },
 ];
 
 // ─── Cash Flow Data (enhanced with DSCR row) ───
 const cashFlowData = [
-  { label: 'Operating Activities', values: ['Net Income', '$97.3K', ''], bold: true, indent: false },
-  { label: '', values: ['Depreciation & Amortization', '$12.4K', ''], bold: false, indent: true },
-  { label: '', values: ['Changes in Working Capital', '($18.2K)', ''], bold: false, indent: true },
-  { label: '', values: ['Stock-based Compensation', '$8.5K', ''], bold: false, indent: true },
-  { label: 'Cash from Operations', values: ['', '$100.0K', ''], bold: true, indent: false },
-  { label: 'Investing Activities', values: ['Capital Expenditures', '($24.0K)', ''], bold: true, indent: false },
-  { label: '', values: ['Investments', '($15.0K)', ''], bold: false, indent: true },
-  { label: 'Cash from Investing', values: ['', '($39.0K)', ''], bold: true, indent: false },
-  { label: 'Financing Activities', values: ['Loan Proceeds', '$0', ''], bold: true, indent: false },
-  { label: '', values: ['Equity Raised', '$0', ''], bold: false, indent: true },
-  { label: 'Cash from Financing', values: ['', '$0', ''], bold: true, indent: false },
-  { label: 'Net Change in Cash', values: ['', '$61.0K', ''], bold: true, indent: false },
+  { label: 'Operating Activities', values: ['Net Income', 'RM97.3K', ''], bold: true, indent: false },
+  { label: '', values: ['Depreciation & Amortization', 'RM12.4K', ''], bold: false, indent: true },
+  { label: '', values: ['Changes in Working Capital', '(RM18.2K)', ''], bold: false, indent: true },
+  { label: '', values: ['Stock-based Compensation', 'RM8.5K', ''], bold: false, indent: true },
+  { label: 'Cash from Operations', values: ['', 'RM100.0K', ''], bold: true, indent: false },
+  { label: 'Investing Activities', values: ['Capital Expenditures', '(RM24.0K)', ''], bold: true, indent: false },
+  { label: '', values: ['Investments', '(RM15.0K)', ''], bold: false, indent: true },
+  { label: 'Cash from Investing', values: ['', '(RM39.0K)', ''], bold: true, indent: false },
+  { label: 'Financing Activities', values: ['Loan Proceeds', 'RM0', ''], bold: true, indent: false },
+  { label: '', values: ['Equity Raised', 'RM0', ''], bold: false, indent: true },
+  { label: 'Cash from Financing', values: ['', 'RM0', ''], bold: true, indent: false },
+  { label: 'Net Change in Cash', values: ['', 'RM61.0K', ''], bold: true, indent: false },
   { label: 'DSCR', values: ['Operating Cash Flow / Debt Service', '1.45x', ''], bold: true, indent: false },
 ];
 
@@ -267,28 +267,28 @@ const optimizationSuggestions = [
   {
     title: 'Reduce Infrastructure Costs',
     impact: 'High',
-    savings: '$8K-12K/mo',
+    savings: 'RM8K-12K/mo',
     description: 'Migrate to reserved instances and optimize cloud resource allocation. Current utilization averages 47%.',
     color: COLORS.emerald,
   },
   {
     title: 'Improve SaaS Retention',
     impact: 'High',
-    savings: '$15K-22K/mo',
+    savings: 'RM15K-22K/mo',
     description: 'Implement proactive churn prevention. Reducing churn from 3.2% to 2.0% adds significant MRR retention.',
     color: COLORS.cyan,
   },
   {
     title: 'Scale Professional Services',
     impact: 'Medium',
-    savings: '$10K-18K/mo',
+    savings: 'RM10K-18K/mo',
     description: 'Professional services has highest margin but lowest revenue share. Invest in PS capacity and packaging.',
     color: COLORS.teal,
   },
   {
     title: 'Automate Operations',
     impact: 'Medium',
-    savings: '$5K-8K/mo',
+    savings: 'RM5K-8K/mo',
     description: 'Deploy AI agents for operational tasks. Potential to reduce operations spend by 25-35%.',
     color: COLORS.amber,
   },
@@ -1030,7 +1030,7 @@ export default function FinancialsModule() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm">ARPU ($)</Label>
+                      <Label className="text-sm">ARPU (RM)</Label>
                       <Input
                         type="number"
                         value={arpu}
@@ -1067,7 +1067,7 @@ export default function FinancialsModule() {
                       </p>
                       <p className="text-muted-foreground text-xs">
                         Churn at {churnRate[0].toFixed(1)}% is above the 2% target. 
-                        Each 0.5% reduction in churn adds ~${(modeledRevenue[11]?.projected * 0.005 / 1000).toFixed(0)}K to projected year-end revenue.
+                        Each 0.5% reduction in churn adds ~RM${(modeledRevenue[11]?.projected * 0.005 / 1000).toFixed(0)}K to projected year-end revenue.
                       </p>
                     </div>
                     <div className="rounded-lg bg-background/60 p-3 text-sm space-y-2">

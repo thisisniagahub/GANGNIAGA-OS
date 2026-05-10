@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { PlanActualData, IntegrationData, VarianceAlert } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import {
   Card,
   CardContent,
@@ -33,13 +34,27 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   BarChart,
   Bar,
@@ -75,6 +90,13 @@ import {
   Activity,
   Shield,
   Info,
+  Plus,
+  Pencil,
+  Trash2,
+  UserPlus,
+  ThumbsUp,
+  ThumbsDown,
+  Gauge,
 } from 'lucide-react';
 
 // ─── Color Palette (emerald, rose, amber, cyan) ─────────────────────────
@@ -168,16 +190,83 @@ const severityConfig: Record<string, { color: string; bg: string; border: string
   info: { color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/30', border: 'border-cyan-500', icon: Info },
 };
 
+// ─── Affordability Gauge SVG ─────────────────────────────────────────────
+function AffordabilityGauge({ score }: { score: number }) {
+  const radius = 60;
+  const circumference = Math.PI * radius; // half circle
+  const progress = (score / 100) * circumference;
+  const color = score >= 70 ? COLORS.emerald : score >= 40 ? COLORS.amber : COLORS.rose;
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <svg width="160" height="90" viewBox="0 0 160 90">
+        {/* Background arc */}
+        <path
+          d="M 20 80 A 60 60 0 0 1 140 80"
+          fill="none"
+          stroke="hsl(var(--muted))"
+          strokeWidth="12"
+          strokeLinecap="round"
+        />
+        {/* Progress arc */}
+        <path
+          d="M 20 80 A 60 60 0 0 1 140 80"
+          fill="none"
+          stroke={color}
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={`${progress} ${circumference}`}
+          style={{ transition: 'stroke-dasharray 1s ease-out' }}
+        />
+        {/* Score text */}
+        <text
+          x="80"
+          y="72"
+          textAnchor="middle"
+          className="fill-foreground text-2xl font-bold"
+          style={{ fontSize: '24px', fontWeight: 700 }}
+        >
+          {score.toFixed(0)}
+        </text>
+        <text
+          x="80"
+          y="87"
+          textAnchor="middle"
+          className="fill-muted-foreground"
+          style={{ fontSize: '10px' }}
+        >
+          out of 100
+        </text>
+      </svg>
+    </div>
+  );
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Main Component
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function PlanActualsModule() {
-  const { planActuals, integrations, varianceAlerts } = useAppStore();
+  const { planActuals, integrations, varianceAlerts, addPlanActual, updatePlanActual } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState<PlanActualData['category']>('revenue');
   const [isSyncing, setIsSyncing] = useState(false);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [qbDialogOpen, setQbDialogOpen] = useState(false);
   const [xeroDialogOpen, setXeroDialogOpen] = useState(false);
+
+  // ─── Add/Edit Entry Dialog State ──────────────────────────────
+  const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<PlanActualData | null>(null);
+  const [entryCategory, setEntryCategory] = useState<PlanActualData['category']>('revenue');
+  const [entryPeriod, setEntryPeriod] = useState('');
+  const [entryPlannedAmount, setEntryPlannedAmount] = useState('');
+  const [entryActualAmount, setEntryActualAmount] = useState('');
+  const [entrySource, setEntrySource] = useState<PlanActualData['source']>('manual');
+
+  // ─── Delete Confirmation ──────────────────────────────────────
+  const [deleteTarget, setDeleteTarget] = useState<PlanActualData | null>(null);
+
+  // ─── Hire Calculator State ────────────────────────────────────
+  const [hireCost, setHireCost] = useState('8000');
 
   // ─── Filtered data by category ──────────────────────────────────
   const filteredData = useMemo(
@@ -227,7 +316,7 @@ export default function PlanActualsModule() {
     const cashflowItems = planActuals.filter((d) => d.category === 'cashflow');
     const totalActualCashflow = cashflowItems.reduce((s, d) => s + (d.actualAmount ?? 0), 0);
     const avgMonthlyCashflow = totalActualCashflow / Math.max(cashflowItems.length, 1);
-    const newHireCost = 8000; // RM8K/month average
+    const newHireCost = parseFloat(hireCost) || 8000;
     const currentBurnRate = 187200;
     const currentCashPosition = 1680000;
     const runwayMonths = Math.max(Math.floor(currentCashPosition / currentBurnRate), 0);
@@ -245,7 +334,7 @@ export default function PlanActualsModule() {
       canAfford,
       affordabilityScore,
     };
-  }, [planActuals]);
+  }, [planActuals, hireCost]);
 
   // ─── Active (non-dismissed) alerts ──────────────────────────────
   const activeAlerts = useMemo(
@@ -260,7 +349,10 @@ export default function PlanActualsModule() {
   // ─── Sync simulation ────────────────────────────────────────────
   const handleSync = () => {
     setIsSyncing(true);
-    setTimeout(() => setIsSyncing(false), 2000);
+    setTimeout(() => {
+      setIsSyncing(false);
+      toast.success('Data synced successfully');
+    }, 2000);
   };
 
   const handleDismissAlert = (id: string) => {
@@ -279,8 +371,6 @@ export default function PlanActualsModule() {
   };
 
   // ─── Variance color helpers ─────────────────────────────────────
-  // For revenue/profit/cashflow: positive variance = good (green), negative = bad (red)
-  // For expense: positive variance = bad (overspend, red), negative = good (underspend, green)
   const getVarianceColor = (category: string, variance: number | null) => {
     if (variance === null) return 'text-muted-foreground';
     if (category === 'expense') {
@@ -304,6 +394,122 @@ export default function PlanActualsModule() {
     return d.toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
+  // ─── Open Add Entry Dialog ──────────────────────────────────────
+  const openAddDialog = useCallback(() => {
+    setEditingEntry(null);
+    setEntryCategory('revenue');
+    setEntryPeriod('');
+    setEntryPlannedAmount('');
+    setEntryActualAmount('');
+    setEntrySource('manual');
+    setEntryDialogOpen(true);
+  }, []);
+
+  // ─── Open Edit Entry Dialog ─────────────────────────────────────
+  const openEditDialog = useCallback((entry: PlanActualData) => {
+    setEditingEntry(entry);
+    setEntryCategory(entry.category);
+    setEntryPeriod(entry.period);
+    setEntryPlannedAmount(entry.plannedAmount.toString());
+    setEntryActualAmount(entry.actualAmount !== null ? entry.actualAmount.toString() : '');
+    setEntrySource(entry.source);
+    setEntryDialogOpen(true);
+  }, []);
+
+  // ─── Handle Save Entry (Add or Edit) ────────────────────────────
+  const handleSaveEntry = useCallback(() => {
+    // Validate period format
+    const periodRegex = /^\d{4}-\d{2}$/;
+    if (!periodRegex.test(entryPeriod)) {
+      toast.error('Period must be in YYYY-MM format (e.g. 2025-04)');
+      return;
+    }
+
+    const plannedAmount = parseFloat(entryPlannedAmount);
+    if (isNaN(plannedAmount) || plannedAmount <= 0) {
+      toast.error('Planned amount must be a positive number');
+      return;
+    }
+
+    const actualAmountRaw = entryActualAmount.trim();
+    const actualAmount = actualAmountRaw !== '' ? parseFloat(actualAmountRaw) : null;
+
+    if (actualAmountRaw !== '' && (isNaN(actualAmount!) || actualAmount! < 0)) {
+      toast.error('Actual amount must be a non-negative number');
+      return;
+    }
+
+    // Calculate variance
+    const variance = actualAmount !== null ? actualAmount - plannedAmount : null;
+    const variancePercent = variance !== null ? (variance / plannedAmount) * 100 : null;
+
+    if (editingEntry) {
+      // Update existing entry
+      updatePlanActual(editingEntry.id, {
+        category: entryCategory,
+        period: entryPeriod,
+        plannedAmount,
+        actualAmount,
+        variance,
+        variancePercent,
+        source: entrySource,
+      });
+      toast.success(`Entry for ${formatPeriod(entryPeriod)} updated successfully`);
+    } else {
+      // Create new entry
+      const newEntry: PlanActualData = {
+        id: `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        category: entryCategory,
+        period: entryPeriod,
+        plannedAmount,
+        actualAmount,
+        variance,
+        variancePercent,
+        source: entrySource,
+      };
+      addPlanActual(newEntry);
+      toast.success(`New ${categoryLabel(entryCategory)} entry for ${formatPeriod(entryPeriod)} added`);
+    }
+
+    setEntryDialogOpen(false);
+  }, [editingEntry, entryCategory, entryPeriod, entryPlannedAmount, entryActualAmount, entrySource, addPlanActual, updatePlanActual]);
+
+  // ─── Handle Delete Entry ────────────────────────────────────────
+  const handleDeleteEntry = useCallback(() => {
+    if (!deleteTarget) return;
+    // Remove from store by filtering
+    useAppStore.setState((s) => ({
+      planActuals: s.planActuals.filter((pa) => pa.id !== deleteTarget.id),
+    }));
+    toast.success(`Entry for ${formatPeriod(deleteTarget.period)} deleted`);
+    setDeleteTarget(null);
+  }, [deleteTarget]);
+
+  // ─── Handle Export ──────────────────────────────────────────────
+  const handleExport = useCallback(() => {
+    const csvRows = [
+      ['Category', 'Period', 'Planned (RM)', 'Actual (RM)', 'Variance (RM)', 'Variance (%)', 'Source'],
+      ...planActuals.map((d) => [
+        categoryLabel(d.category),
+        d.period,
+        d.plannedAmount.toString(),
+        d.actualAmount?.toString() ?? 'Pending',
+        d.variance?.toString() ?? '—',
+        d.variancePercent?.toFixed(1) ?? '—',
+        sourceLabel(d.source),
+      ]),
+    ];
+    const csvContent = csvRows.map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `plan-vs-actuals-export-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Data exported as CSV');
+  }, [planActuals]);
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       {/* ─── Header ────────────────────────────────────────────────── */}
@@ -326,7 +532,15 @@ export default function PlanActualsModule() {
             Real-time financial tracking against your forecasts
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={openAddDialog}
+          >
+            <Plus className="h-4 w-4" />
+            Add Entry
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -341,12 +555,176 @@ export default function PlanActualsModule() {
             )}
             Sync Now
           </Button>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExport}>
             <Download className="h-4 w-4" />
             Export
           </Button>
         </div>
       </motion.div>
+
+      {/* ─── Add/Edit Entry Dialog ────────────────────────────────── */}
+      <Dialog open={entryDialogOpen} onOpenChange={setEntryDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editingEntry ? (
+                <>
+                  <Pencil className="h-5 w-5 text-amber-500" />
+                  Edit Plan vs Actual Entry
+                </>
+              ) : (
+                <>
+                  <Plus className="h-5 w-5 text-emerald-500" />
+                  Add Plan vs Actual Entry
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {editingEntry
+                ? 'Update the planned and actual amounts for this period.'
+                : 'Enter planned and actual financial data for a specific period.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {/* Category */}
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={entryCategory} onValueChange={(v) => setEntryCategory(v as PlanActualData['category'])}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="revenue">Revenue</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
+                  <SelectItem value="cashflow">Cash Flow</SelectItem>
+                  <SelectItem value="profit">Profit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Period */}
+            <div className="space-y-2">
+              <Label>Period (YYYY-MM)</Label>
+              <Input
+                placeholder="e.g. 2025-04"
+                value={entryPeriod}
+                onChange={(e) => setEntryPeriod(e.target.value)}
+                maxLength={7}
+              />
+              <p className="text-[10px] text-muted-foreground">Format: YYYY-MM (e.g. 2025-04 for April 2025)</p>
+            </div>
+
+            {/* Planned Amount */}
+            <div className="space-y-2">
+              <Label>Planned Amount (RM)</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 250000"
+                value={entryPlannedAmount}
+                onChange={(e) => setEntryPlannedAmount(e.target.value)}
+                min="0"
+              />
+            </div>
+
+            {/* Actual Amount */}
+            <div className="space-y-2">
+              <Label>Actual Amount (RM) — optional</Label>
+              <Input
+                type="number"
+                placeholder="Leave empty if pending"
+                value={entryActualAmount}
+                onChange={(e) => setEntryActualAmount(e.target.value)}
+                min="0"
+              />
+              <p className="text-[10px] text-muted-foreground">Leave empty to mark as &quot;Pending&quot;</p>
+            </div>
+
+            {/* Source */}
+            <div className="space-y-2">
+              <Label>Source</Label>
+              <Select value={entrySource} onValueChange={(v) => setEntrySource(v as PlanActualData['source'])}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="quickbooks">QuickBooks</SelectItem>
+                  <SelectItem value="xero">Xero</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Auto-calculated variance preview */}
+            {entryPlannedAmount && entryActualAmount && (
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Auto-calculated Variance</p>
+                <div className="flex items-center gap-3 text-sm">
+                  <span>
+                    Variance:{' '}
+                    <span className={cn(
+                      'font-bold',
+                      getVarianceColor(entryCategory, parseFloat(entryActualAmount) - parseFloat(entryPlannedAmount))
+                    )}>
+                      {formatRMFull(parseFloat(entryActualAmount) - parseFloat(entryPlannedAmount))}
+                    </span>
+                  </span>
+                  <span>
+                    ({formatPercent(((parseFloat(entryActualAmount) - parseFloat(entryPlannedAmount)) / parseFloat(entryPlannedAmount)) * 100)})
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setEntryDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleSaveEntry}
+            >
+              {editingEntry ? (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Update Entry
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Add Entry
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete Confirmation Dialog ────────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-rose-500" />
+              Delete Entry
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the {deleteTarget ? categoryLabel(deleteTarget.category) : ''} entry for{' '}
+              {deleteTarget ? formatPeriod(deleteTarget.period) : ''}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteEntry}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ─── Integration Bar ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -439,7 +817,10 @@ export default function PlanActualsModule() {
                           </div>
                           <Button
                             className="w-full gap-2"
-                            onClick={() => setQbDialogOpen(false)}
+                            onClick={() => {
+                              setQbDialogOpen(false);
+                              toast.success('QuickBooks connection authorized');
+                            }}
                           >
                             <Sparkles className="h-4 w-4" />
                             Authorize Connection
@@ -489,7 +870,10 @@ export default function PlanActualsModule() {
                           </div>
                           <Button
                             className="w-full gap-2"
-                            onClick={() => setXeroDialogOpen(false)}
+                            onClick={() => {
+                              setXeroDialogOpen(false);
+                              toast.success('Xero connection authorized');
+                            }}
                           >
                             <Sparkles className="h-4 w-4" />
                             Authorize Connection
@@ -532,6 +916,10 @@ export default function PlanActualsModule() {
           <TabsTrigger value="detailed" className="gap-1.5 text-xs sm:text-sm">
             <Activity className="h-3.5 w-3.5" />
             Detailed Table
+          </TabsTrigger>
+          <TabsTrigger value="hire" className="gap-1.5 text-xs sm:text-sm">
+            <UserPlus className="h-3.5 w-3.5" />
+            Hire Calculator
           </TabsTrigger>
           <TabsTrigger value="alerts" className="gap-1.5 text-xs sm:text-sm">
             <Bell className="h-3.5 w-3.5" />
@@ -744,7 +1132,7 @@ export default function PlanActualsModule() {
                   <div>
                     <CardTitle className="text-lg">Detailed Plan vs Actual Breakdown</CardTitle>
                     <CardDescription>
-                      Monthly comparison with variance analysis
+                      Monthly comparison with variance analysis — click a row to edit
                     </CardDescription>
                   </div>
                   <Select
@@ -774,6 +1162,7 @@ export default function PlanActualsModule() {
                         <TableHead className="text-right">Variance (RM)</TableHead>
                         <TableHead className="text-right">Variance (%)</TableHead>
                         <TableHead className="text-center">Source</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -783,7 +1172,8 @@ export default function PlanActualsModule() {
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.05, duration: 0.3 }}
-                          className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                          className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                          onClick={() => openEditDialog(row)}
                         >
                           <TableCell className="font-medium">
                             {formatPeriod(row.period)}
@@ -834,6 +1224,26 @@ export default function PlanActualsModule() {
                               {sourceLabel(row.source)}
                             </Badge>
                           </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 hover:bg-amber-500/10 hover:text-amber-600"
+                                onClick={() => openEditDialog(row)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 hover:bg-rose-500/10 hover:text-rose-600"
+                                onClick={() => setDeleteTarget(row)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </motion.tr>
                       ))}
                     </TableBody>
@@ -882,7 +1292,258 @@ export default function PlanActualsModule() {
           </motion.div>
         </TabsContent>
 
-        {/* ━━━ Tab 3: Variance Alerts ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━━ Tab 3: Hire Calculator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <TabsContent value="hire" className="space-y-6">
+          <motion.div variants={fadeIn} initial="hidden" animate="visible">
+            <Card className={cn(
+              'border-l-4 overflow-hidden',
+              hireCalculator.canAfford ? 'border-l-emerald-500' : 'border-l-rose-500'
+            )}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-lg',
+                    hireCalculator.canAfford ? 'bg-emerald-500/10' : 'bg-rose-500/10'
+                  )}>
+                    <UserPlus className={cn(
+                      'h-5 w-5',
+                      hireCalculator.canAfford ? 'text-emerald-500' : 'text-rose-500'
+                    )} />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Can You Afford to Hire?</CardTitle>
+                    <CardDescription>
+                      Cash flow runway assessment based on actual financial data
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* YES/NO Recommendation Banner */}
+                <div className={cn(
+                  'rounded-xl p-5 flex items-center gap-4',
+                  hireCalculator.canAfford
+                    ? 'bg-emerald-500/10 border border-emerald-500/20'
+                    : 'bg-rose-500/10 border border-rose-500/20'
+                )}>
+                  <div className={cn(
+                    'flex h-14 w-14 items-center justify-center rounded-full shrink-0',
+                    hireCalculator.canAfford ? 'bg-emerald-500/20' : 'bg-rose-500/20'
+                  )}>
+                    {hireCalculator.canAfford ? (
+                      <ThumbsUp className="h-7 w-7 text-emerald-600" />
+                    ) : (
+                      <ThumbsDown className="h-7 w-7 text-rose-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className={cn(
+                      'text-xl font-bold',
+                      hireCalculator.canAfford ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                    )}>
+                      {hireCalculator.canAfford ? 'YES — You Can Afford to Hire' : 'NO — Hiring Is Not Recommended'}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {hireCalculator.canAfford
+                        ? `Your avg monthly cash flow (RM${hireCalculator.avgMonthlyCashflow.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}) comfortably exceeds the estimated hire cost.`
+                        : `Your avg monthly cash flow (RM${hireCalculator.avgMonthlyCashflow.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}) does not comfortably cover the hire cost.`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Gauge + Editable Hire Cost Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Affordability Score Gauge */}
+                  <div className="flex flex-col items-center justify-center gap-3 rounded-xl border bg-muted/20 p-6">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Gauge className="h-4 w-4" />
+                      Affordability Score
+                    </div>
+                    <AffordabilityGauge score={hireCalculator.affordabilityScore} />
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'text-xs',
+                        hireCalculator.affordabilityScore >= 70
+                          ? 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10'
+                          : hireCalculator.affordabilityScore >= 40
+                            ? 'border-amber-500/30 text-amber-600 bg-amber-500/10'
+                            : 'border-rose-500/30 text-rose-600 bg-rose-500/10'
+                      )}
+                    >
+                      {hireCalculator.affordabilityScore >= 70
+                        ? 'STRONG'
+                        : hireCalculator.affordabilityScore >= 40
+                          ? 'MODERATE'
+                          : 'WEAK'}
+                    </Badge>
+                  </div>
+
+                  {/* Editable Parameters */}
+                  <div className="space-y-4">
+                    {/* New Hire Cost (editable) */}
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <Label className="text-sm font-medium">New Hire Cost (RM/month)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={hireCost}
+                          onChange={(e) => setHireCost(e.target.value)}
+                          min="0"
+                          className="text-lg font-bold"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => {
+                            setHireCost('8000');
+                            toast.info('Hire cost reset to RM8,000/mo default');
+                          }}
+                        >
+                          Reset
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Default: RM8,000/mo (average Malaysian SME salary)</p>
+                    </div>
+
+                    {/* Current Monthly Cash Flow */}
+                    <div className="rounded-xl border p-4">
+                      <p className="text-sm text-muted-foreground">Current Monthly Cash Flow</p>
+                      <p className={cn(
+                        'text-2xl font-bold mt-1',
+                        hireCalculator.avgMonthlyCashflow >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                      )}>
+                        {formatRM(hireCalculator.avgMonthlyCashflow)}/mo
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Key Metrics Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cash Position</p>
+                    <p className="text-lg font-bold mt-1">{formatRM(hireCalculator.currentCashPosition)}</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Monthly Cash Flow</p>
+                    <p className={cn(
+                      'text-lg font-bold mt-1',
+                      hireCalculator.avgMonthlyCashflow >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                    )}>
+                      {formatRM(hireCalculator.avgMonthlyCashflow)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">New Hire Cost</p>
+                    <p className="text-lg font-bold mt-1 text-rose-500">{formatRM(hireCalculator.newHireCost)}</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current Burn Rate</p>
+                    <p className="text-lg font-bold mt-1">{formatRM(hireCalculator.currentBurnRate)}/mo</p>
+                  </div>
+                </div>
+
+                {/* Runway Comparison */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className={cn(
+                    'rounded-lg border p-4',
+                    hireCalculator.runwayMonths >= 12 ? 'border-emerald-500/30 bg-emerald-500/5' :
+                    hireCalculator.runwayMonths >= 6 ? 'border-amber-500/30 bg-amber-500/5' :
+                    'border-rose-500/30 bg-rose-500/5'
+                  )}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Current Runway</span>
+                    </div>
+                    <p className={cn(
+                      'text-3xl font-bold',
+                      hireCalculator.runwayMonths >= 12 ? 'text-emerald-600 dark:text-emerald-400' :
+                      hireCalculator.runwayMonths >= 6 ? 'text-amber-600 dark:text-amber-400' :
+                      'text-rose-600 dark:text-rose-400'
+                    )}>
+                      {hireCalculator.runwayMonths} months
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Without new hire at {formatRM(hireCalculator.currentBurnRate)}/mo
+                    </p>
+                  </div>
+                  <div className={cn(
+                    'rounded-lg border p-4',
+                    hireCalculator.runwayWithHire >= 12 ? 'border-emerald-500/30 bg-emerald-500/5' :
+                    hireCalculator.runwayWithHire >= 6 ? 'border-amber-500/30 bg-amber-500/5' :
+                    'border-rose-500/30 bg-rose-500/5'
+                  )}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Runway with New Hire</span>
+                    </div>
+                    <p className={cn(
+                      'text-3xl font-bold',
+                      hireCalculator.runwayWithHire >= 12 ? 'text-emerald-600 dark:text-emerald-400' :
+                      hireCalculator.runwayWithHire >= 6 ? 'text-amber-600 dark:text-amber-400' :
+                      'text-rose-600 dark:text-rose-400'
+                    )}>
+                      {hireCalculator.runwayWithHire} months
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      With hire at {formatRM(hireCalculator.currentBurnRate + hireCalculator.newHireCost)}/mo
+                    </p>
+                  </div>
+                </div>
+
+                {/* Runway Impact */}
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">Runway Impact</span>
+                    <span className="font-semibold text-rose-500">
+                      -{hireCalculator.runwayMonths - hireCalculator.runwayWithHire} months
+                    </span>
+                  </div>
+                  <Progress
+                    value={((hireCalculator.runwayMonths - hireCalculator.runwayWithHire) / hireCalculator.runwayMonths) * 100}
+                    className="h-2 [&>div]:bg-rose-500"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Hiring would reduce your runway from {hireCalculator.runwayMonths} to {hireCalculator.runwayWithHire} months
+                    (a reduction of {hireCalculator.runwayMonths - hireCalculator.runwayWithHire} months)
+                  </p>
+                </div>
+
+                {/* Detailed Recommendation */}
+                <div className={cn(
+                  'rounded-lg border p-4 flex items-start gap-3',
+                  hireCalculator.canAfford
+                    ? 'border-emerald-500/20 bg-emerald-500/5'
+                    : 'border-rose-500/20 bg-rose-500/5'
+                )}>
+                  <Sparkles className={cn(
+                    'h-5 w-5 mt-0.5 shrink-0',
+                    hireCalculator.canAfford ? 'text-emerald-500' : 'text-rose-500'
+                  )} />
+                  <div>
+                    <p className={cn(
+                      'font-semibold text-sm',
+                      hireCalculator.canAfford ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                    )}>
+                      {hireCalculator.canAfford
+                        ? 'Hiring is affordable at current cash flow levels'
+                        : 'Hiring may strain cash flow at current levels'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {hireCalculator.canAfford
+                        ? `Your average monthly cash flow (RM${hireCalculator.avgMonthlyCashflow.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}) exceeds the estimated hire cost (RM${hireCalculator.newHireCost.toLocaleString()}/mo). Runway would decrease from ${hireCalculator.runwayMonths} to ${hireCalculator.runwayWithHire} months.`
+                        : `Your average monthly cash flow (RM${hireCalculator.avgMonthlyCashflow.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}) does not comfortably cover the estimated hire cost (RM${hireCalculator.newHireCost.toLocaleString()}/mo). Consider waiting for improved cash flow or reducing the hire cost.`}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
+
+        {/* ━━━ Tab 4: Variance Alerts ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <TabsContent value="alerts" className="space-y-6">
           {/* Critical Alerts */}
           {criticalAlerts.length > 0 && (
@@ -1104,164 +1765,6 @@ export default function PlanActualsModule() {
               </Card>
             </motion.div>
           )}
-
-          {/* ─── Can You Afford to Hire? ────────────────────────────── */}
-          <motion.div variants={fadeIn} initial="hidden" animate="visible">
-            <Card className={cn(
-              'border-l-4',
-              hireCalculator.canAfford ? 'border-l-emerald-500' : 'border-l-rose-500'
-            )}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <div className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-lg',
-                    hireCalculator.canAfford ? 'bg-emerald-500/10' : 'bg-rose-500/10'
-                  )}>
-                    <Shield className={cn(
-                      'h-4 w-4',
-                      hireCalculator.canAfford ? 'text-emerald-500' : 'text-rose-500'
-                    )} />
-                  </div>
-                  <CardTitle className="text-lg">Can You Afford to Hire?</CardTitle>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'text-[10px]',
-                      hireCalculator.canAfford
-                        ? 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10'
-                        : 'border-rose-500/30 text-rose-600 bg-rose-500/10'
-                    )}
-                  >
-                    {hireCalculator.canAfford ? 'AFFORDABLE' : 'CAUTION'}
-                  </Badge>
-                </div>
-                <CardDescription>
-                  Cash flow runway assessment based on actual financial data
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {/* Affordability Score */}
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                      <span>Affordability Score</span>
-                      <span className="font-semibold">{hireCalculator.affordabilityScore.toFixed(0)}%</span>
-                    </div>
-                    <Progress
-                      value={hireCalculator.affordabilityScore}
-                      className={cn(
-                        'h-2',
-                        hireCalculator.affordabilityScore >= 70 ? '[&>div]:bg-emerald-500' :
-                        hireCalculator.affordabilityScore >= 40 ? '[&>div]:bg-amber-500' :
-                        '[&>div]:bg-rose-500'
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Key Metrics Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cash Position</p>
-                    <p className="text-lg font-bold mt-1">{formatRM(hireCalculator.currentCashPosition)}</p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Monthly Cash Flow</p>
-                    <p className={cn(
-                      'text-lg font-bold mt-1',
-                      hireCalculator.avgMonthlyCashflow >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                    )}>
-                      {formatRM(hireCalculator.avgMonthlyCashflow)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">New Hire Cost</p>
-                    <p className="text-lg font-bold mt-1 text-rose-500">{formatRM(hireCalculator.newHireCost)}</p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/30 p-3 text-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current Burn Rate</p>
-                    <p className="text-lg font-bold mt-1">{formatRM(hireCalculator.currentBurnRate)}/mo</p>
-                  </div>
-                </div>
-
-                {/* Runway Comparison */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className={cn(
-                    'rounded-lg border p-4',
-                    hireCalculator.runwayMonths >= 12 ? 'border-emerald-500/30 bg-emerald-500/5' :
-                    hireCalculator.runwayMonths >= 6 ? 'border-amber-500/30 bg-amber-500/5' :
-                    'border-rose-500/30 bg-rose-500/5'
-                  )}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Current Runway</span>
-                    </div>
-                    <p className={cn(
-                      'text-3xl font-bold',
-                      hireCalculator.runwayMonths >= 12 ? 'text-emerald-600 dark:text-emerald-400' :
-                      hireCalculator.runwayMonths >= 6 ? 'text-amber-600 dark:text-amber-400' :
-                      'text-rose-600 dark:text-rose-400'
-                    )}>
-                      {hireCalculator.runwayMonths} months
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Without new hire at {formatRM(hireCalculator.currentBurnRate)}/mo
-                    </p>
-                  </div>
-                  <div className={cn(
-                    'rounded-lg border p-4',
-                    hireCalculator.runwayWithHire >= 12 ? 'border-emerald-500/30 bg-emerald-500/5' :
-                    hireCalculator.runwayWithHire >= 6 ? 'border-amber-500/30 bg-amber-500/5' :
-                    'border-rose-500/30 bg-rose-500/5'
-                  )}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingDown className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Runway with New Hire</span>
-                    </div>
-                    <p className={cn(
-                      'text-3xl font-bold',
-                      hireCalculator.runwayWithHire >= 12 ? 'text-emerald-600 dark:text-emerald-400' :
-                      hireCalculator.runwayWithHire >= 6 ? 'text-amber-600 dark:text-amber-400' :
-                      'text-rose-600 dark:text-rose-400'
-                    )}>
-                      {hireCalculator.runwayWithHire} months
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      With hire at {formatRM(hireCalculator.currentBurnRate + hireCalculator.newHireCost)}/mo
-                    </p>
-                  </div>
-                </div>
-
-                {/* Recommendation */}
-                <div className={cn(
-                  'rounded-lg border p-4 flex items-start gap-3',
-                  hireCalculator.canAfford
-                    ? 'border-emerald-500/20 bg-emerald-500/5'
-                    : 'border-rose-500/20 bg-rose-500/5'
-                )}>
-                  <Sparkles className={cn(
-                    'h-5 w-5 mt-0.5 shrink-0',
-                    hireCalculator.canAfford ? 'text-emerald-500' : 'text-rose-500'
-                  )} />
-                  <div>
-                    <p className={cn(
-                      'font-semibold text-sm',
-                      hireCalculator.canAfford ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                    )}>
-                      {hireCalculator.canAfford
-                        ? 'Yes — Hiring is affordable at current cash flow levels'
-                        : 'Caution — Hiring may strain cash flow at current levels'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {hireCalculator.canAfford
-                        ? `Your average monthly cash flow (RM${hireCalculator.avgMonthlyCashflow.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}) exceeds the estimated hire cost (RM${hireCalculator.newHireCost.toLocaleString()}/mo). Runway would decrease from ${hireCalculator.runwayMonths} to ${hireCalculator.runwayWithHire} months.`
-                        : `Your average monthly cash flow (RM${hireCalculator.avgMonthlyCashflow.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}) does not comfortably cover the estimated hire cost (RM${hireCalculator.newHireCost.toLocaleString()}/mo). Consider waiting for improved cash flow or reducing the hire cost.`}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
 
           {/* Dismissed alerts info */}
           {dismissedAlerts.size > 0 && (

@@ -24,6 +24,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Shield,
+  FileText,
+  Lightbulb,
+  Eye,
+  Bot,
+  Sparkles,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -181,6 +186,7 @@ export default function Dashboard() {
   const kpis = useAppStore((s) => s.kpis);
   const revenueData = useAppStore((s) => s.revenueData);
   const expenseData = useAppStore((s) => s.expenseData);
+  const { setActiveModule, toggleCopilot } = useAppStore();
 
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6">
@@ -391,14 +397,14 @@ export default function Dashboard() {
                         axisLine={false}
                         tickLine={false}
                         tickFormatter={(v: number) =>
-                          `$${(v / 1000).toFixed(0)}K`
+                          `RM${(v / 1000).toFixed(0)}K`
                         }
                       />
                       <ChartTooltip
                         content={
                           <ChartTooltipContent
                             formatter={(value) =>
-                              `$${Number(value).toLocaleString()}`
+                              `RM${Number(value).toLocaleString()}`
                             }
                           />
                         }
@@ -455,14 +461,14 @@ export default function Dashboard() {
                         axisLine={false}
                         tickLine={false}
                         tickFormatter={(v: number) =>
-                          `$${(v / 1000).toFixed(0)}K`
+                          `RM${(v / 1000).toFixed(0)}K`
                         }
                       />
                       <ChartTooltip
                         content={
                           <ChartTooltipContent
                             formatter={(value) =>
-                              `$${Number(value).toLocaleString()}`
+                              `RM${Number(value).toLocaleString()}`
                             }
                           />
                         }
@@ -509,7 +515,7 @@ export default function Dashboard() {
                     content={
                       <ChartTooltipContent
                         formatter={(value) =>
-                          `$${Number(value).toLocaleString()}`
+                          `RM${Number(value).toLocaleString()}`
                         }
                         nameKey="name"
                       />
@@ -601,6 +607,125 @@ export default function Dashboard() {
                           {insight.description}
                         </p>
                       </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </section>
+
+      {/* ── Bottom Section: Quick Actions ─────────────────────────────── */}
+      <section aria-label="Quick Actions">
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={fadeUp}
+          custom={11}
+        >
+          <Card className="border-border/40 bg-card/80 backdrop-blur-sm">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <Sparkles className="h-4 w-4 text-emerald-400" />
+                </div>
+                <CardTitle className="text-base font-semibold">
+                  Quick Actions
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    key: 'create-proposal',
+                    title: 'Create Proposal',
+                    description: 'Start a new business proposal with AI assistance',
+                    icon: FileText,
+                    color: 'emerald' as const,
+                    action: () => setActiveModule('business-plans'),
+                  },
+                  {
+                    key: 'validate-idea',
+                    title: 'Validate Idea',
+                    description: 'Pressure-test your business idea with AI',
+                    icon: Lightbulb,
+                    color: 'amber' as const,
+                    action: () => setActiveModule('idea-canvas'),
+                  },
+                  {
+                    key: 'run-review',
+                    title: 'Run Review',
+                    description: 'Cross-check narrative vs financials like a lender',
+                    icon: Eye,
+                    color: 'teal' as const,
+                    action: () => setActiveModule('plan-review'),
+                  },
+                  {
+                    key: 'open-copilot',
+                    title: 'Open Copilot',
+                    description: 'Chat with GangNiaga AI assistant',
+                    icon: Bot,
+                    color: 'cyan' as const,
+                    action: () => toggleCopilot(),
+                  },
+                ].map((item, i) => {
+                  const colorMap = {
+                    emerald: {
+                      bg: 'bg-emerald-500/10',
+                      text: 'text-emerald-400',
+                      hover: 'hover:border-emerald-500/30 hover:bg-emerald-500/5',
+                      stripe: 'from-emerald-500/80 to-emerald-500/0',
+                    },
+                    amber: {
+                      bg: 'bg-amber-500/10',
+                      text: 'text-amber-400',
+                      hover: 'hover:border-amber-500/30 hover:bg-amber-500/5',
+                      stripe: 'from-amber-500/80 to-amber-500/0',
+                    },
+                    teal: {
+                      bg: 'bg-teal-500/10',
+                      text: 'text-teal-400',
+                      hover: 'hover:border-teal-500/30 hover:bg-teal-500/5',
+                      stripe: 'from-teal-500/80 to-teal-500/0',
+                    },
+                    cyan: {
+                      bg: 'bg-cyan-500/10',
+                      text: 'text-cyan-400',
+                      hover: 'hover:border-cyan-500/30 hover:bg-cyan-500/5',
+                      stripe: 'from-cyan-500/80 to-cyan-500/0',
+                    },
+                  }[item.color];
+                  const ItemIcon = item.icon;
+
+                  return (
+                    <motion.div
+                      key={item.key}
+                      custom={12 + i}
+                      initial="hidden"
+                      animate="visible"
+                      variants={fadeUp}
+                    >
+                      <button
+                        onClick={item.action}
+                        className={`group relative w-full rounded-xl border border-border/30 bg-muted/20 p-4 text-left transition-colors ${colorMap.hover}`}
+                      >
+                        <div
+                          className={`absolute inset-x-0 top-0 h-[2px] rounded-t-xl bg-gradient-to-r ${colorMap.stripe} opacity-0 transition-opacity group-hover:opacity-100`}
+                        />
+                        <div className="mb-3 flex items-center gap-2.5">
+                          <div
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg ${colorMap.bg}`}
+                          >
+                            <ItemIcon className={`h-4 w-4 ${colorMap.text}`} />
+                          </div>
+                          <h4 className="text-sm font-semibold">{item.title}</h4>
+                        </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {item.description}
+                        </p>
+                      </button>
                     </motion.div>
                   );
                 })}

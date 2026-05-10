@@ -40,9 +40,13 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Search */}
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-          <Search className="h-4 w-4" />
+        {/* Search + Command Palette Hint */}
+        <Button variant="outline" size="sm" className="h-8 gap-2 text-muted-foreground hover:text-foreground border-border/50 bg-card/40">
+          <Search className="h-3.5 w-3.5" />
+          <span className="text-xs hidden sm:inline">Search...</span>
+          <kbd className="pointer-events-none ml-1 inline-flex h-5 select-none items-center gap-0.5 rounded border border-border/60 bg-muted/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            <span className="text-xs">⌘</span>K
+          </kbd>
         </Button>
 
         {/* Theme Toggle */}

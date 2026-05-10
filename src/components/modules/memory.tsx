@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +37,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import type { MemoryEntry } from '@/lib/types';
 
 // ─── Type Configuration ─────────────────────────────────────────────────────
@@ -177,16 +178,29 @@ export function MemoryModule() {
   }, [detailMemory, memories]);
 
   const handleAddMemory = (withAI: boolean) => {
-    // In a real app, this would persist to store/API
-    // For now, just close the dialog
-    if (withAI) {
-      // AI enhancement simulation — would call an API
-    }
+    if (!newCategory.trim() || !newContent.trim()) return;
+
+    const newMemory: MemoryEntry = {
+      id: Date.now().toString(),
+      type: newType,
+      category: newCategory.trim(),
+      content: newContent.trim(),
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+
+    useAppStore.setState((s) => ({ memories: [...s.memories, newMemory] }));
     setAddDialogOpen(false);
     setNewType('workspace');
     setNewCategory('');
     setNewContent('');
+    toast.success(withAI ? 'Memory saved with AI enhancement' : 'Memory saved');
   };
+
+  const handleDeleteMemory = useCallback((id: string) => {
+    useAppStore.setState((s) => ({ memories: s.memories.filter((m) => m.id !== id) }));
+    if (detailMemory?.id === id) setDetailMemory(null);
+    toast.success('Memory deleted');
+  }, [detailMemory]);
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -325,7 +339,7 @@ export function MemoryModule() {
                                 className="size-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-rose-500"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Delete would call store/API
+                                  handleDeleteMemory(memory.id);
                                 }}
                               >
                                 <Trash2 className="size-3.5" />
