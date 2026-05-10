@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ModuleId, ChatMessage, KPIData, ChartDataPoint, AgentInfo, TaskInfo, WorkflowInfo, MemoryEntry, BusinessPlanData, ReportData } from './types';
+import type { ModuleId, ChatMessage, KPIData, ChartDataPoint, AgentInfo, TaskInfo, WorkflowInfo, MemoryEntry, BusinessPlanData, ReportData, IdeaCanvasData, PlanReviewData, PlanActualData, IntegrationData, VarianceAlert, PitchDeckData, CitationData } from './types';
 
 interface AppState {
   activeModule: ModuleId;
@@ -43,6 +43,29 @@ interface AppState {
 
   // Forecasts
   forecastData: ChartDataPoint[];
+
+  // ── NEW: Idea Canvas ──
+  ideaCanvases: IdeaCanvasData[];
+  selectedIdea: string | null;
+  setSelectedIdea: (id: string | null) => void;
+
+  // ── NEW: Plan Review ──
+  planReviews: PlanReviewData[];
+  selectedReview: string | null;
+  setSelectedReview: (id: string | null) => void;
+
+  // ── NEW: Plan vs Actuals ──
+  planActuals: PlanActualData[];
+  integrations: IntegrationData[];
+  varianceAlerts: VarianceAlert[];
+
+  // ── NEW: Pitch Deck ──
+  pitchDecks: PitchDeckData[];
+  selectedDeck: string | null;
+  setSelectedDeck: (id: string | null) => void;
+
+  // ── NEW: Citations ──
+  citations: CitationData[];
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -58,7 +81,7 @@ export const useAppStore = create<AppState>((set) => ({
     {
       id: '1',
       role: 'assistant',
-      content: 'Welcome to GangNiaga AI OS! I\'m your autonomous business assistant. I can help you create professional business proposals for bank loans, government grants, angel investors, VCs, and more. How can I assist you today?',
+      content: 'Welcome to GangNiaga AI OS! I\'m your autonomous business assistant. I can help you create professional business proposals, validate ideas with AI, review plans like a lender, track plan vs actuals, and generate pitch decks. How can I assist you today?',
       timestamp: new Date().toISOString(),
     }
   ],
@@ -67,7 +90,7 @@ export const useAppStore = create<AppState>((set) => ({
   chatLoading: false,
   setChatLoading: (loading) => set({ chatLoading: loading }),
 
-  // Dashboard KPIs — includes bank-friendly metrics
+  // Dashboard KPIs
   kpis: [
     { metric: 'Monthly Revenue', value: 284500, previousValue: 256000, target: 300000, unit: 'currency', change: 11.1, trend: 'up' },
     { metric: 'Burn Rate', value: 187200, previousValue: 195000, target: 170000, unit: 'currency', change: -4.0, trend: 'down' },
@@ -109,6 +132,8 @@ export const useAppStore = create<AppState>((set) => ({
     { id: '4', name: 'Report Generator', type: 'reporting', status: 'completed', tasksCompleted: 156, lastActivity: '1 hour ago' },
     { id: '5', name: 'Browser Agent', type: 'browser', status: 'idle', tasksCompleted: 12, lastActivity: '3 hours ago' },
     { id: '6', name: 'CRM Assistant', type: 'crm', status: 'error', tasksCompleted: 8, lastActivity: '30 min ago' },
+    { id: '7', name: 'Plan Review Agent', type: 'review', status: 'idle', tasksCompleted: 14, lastActivity: '10 min ago' },
+    { id: '8', name: 'Citation Verifier', type: 'citation', status: 'running', tasksCompleted: 52, lastActivity: '1 min ago' },
   ],
   selectedAgent: null,
   setSelectedAgent: (id) => set({ selectedAgent: id }),
@@ -117,7 +142,8 @@ export const useAppStore = create<AppState>((set) => ({
     { id: '2', type: 'Financial Forecast', status: 'completed', input: 'Generate Q1 2025 revenue forecast', output: 'Based on current trajectory, Q1 revenue projected at $920K...', duration: 8, createdAt: '10:45 AM' },
     { id: '3', type: 'Competitor Research', status: 'running', input: 'Monitor competitor pricing changes', output: undefined, duration: undefined, createdAt: '11:00 AM' },
     { id: '4', type: 'KPI Report', status: 'pending', input: 'Generate weekly KPI summary', output: undefined, duration: undefined, createdAt: '11:15 AM' },
-    { id: '5', type: 'Risk Assessment', status: 'pending', input: 'Analyze financial risk exposure', output: undefined, duration: undefined, createdAt: '11:30 AM' },
+    { id: '5', type: 'Citation Verification', status: 'running', input: 'Verify market data sources for bank proposal', output: undefined, duration: undefined, createdAt: '11:20 AM' },
+    { id: '6', type: 'Plan Consistency Check', status: 'pending', input: 'Cross-check narrative vs financials for Bank Loan Proposal', output: undefined, duration: undefined, createdAt: '11:30 AM' },
   ],
 
   // Workflows
@@ -158,7 +184,7 @@ export const useAppStore = create<AppState>((set) => ({
     { id: '7', type: 'financial', category: 'DSCR Status', content: 'Current Debt Service Coverage Ratio: 1.45x. Bank minimum requirement: 1.25x. Target: 1.50x. Improvement trajectory positive — up from 1.22x last quarter.', createdAt: '2024-01-15' },
   ],
 
-  // Business Plans — with 21-section professional proposal structure
+  // Business Plans
   plans: [
     {
       id: '1',
@@ -168,25 +194,19 @@ export const useAppStore = create<AppState>((set) => ({
       industry: 'SaaS / Software',
       sections: {
         coverPage: '**GANGNIAGA AI OS**\nAutonomous AI Business Operating System\n\nBusiness Proposal for Bank Financing\nLoan Amount: RM2,000,000\nPrepared: January 2025\n\nGangNiaga Sdn Bhd (Reg. No. 2024012345)',
-        executiveSummary: '**GangNiaga AI OS** is Southeast Asia\'s first autonomous AI-powered business operating system, designed specifically for SMEs across the ASEAN region. We are seeking RM2,000,000 in term loan financing to accelerate product development and market expansion.\n\n**Key Highlights:**\n- Current MRR: RM620K (ARR: RM7.4M)\n- 18-month runway with current burn rate\n- DSCR: 1.45x (above bank minimum of 1.25x)\n- 97% of ASEAN businesses are SMEs, yet less than 15% use business planning software\n- Projected revenue growth: 132% YoY\n- Break-even projected: Q3 2025\n\n**Why Now:** AI adoption in Southeast Asia is accelerating at 28% CAGR. The window for market leadership in AI-autonomous business operations is narrowing — first mover advantage is critical.',
-        companyOverview: '**Company Background:**\nGangNiaga Sdn Bhd was incorporated in January 2024 under the Companies Act 2016. The company operates as a SaaS platform providing AI-powered business planning, financial forecasting, and autonomous workflow execution.\n\n**Registration:** SSM Reg. No. 2024012345\n**Legal Structure:** Private Limited Company (Sdn Bhd)\n**Ownership:**\n- CEO: 60% equity\n- CTO: 25% equity\n- ESOP Pool: 15% equity\n\n**Mission:** To democratize AI-powered business operations for every SME in Southeast Asia.\n\n**Vision:** To become the region\'s leading AI business operating system by 2027.\n\n**Milestones Achieved:**\n- Q1 2024: Product MVP launched\n- Q2 2024: 100 paying customers\n- Q3 2024: RM2.5M seed funding secured\n- Q4 2024: 500+ customers, RM7.4M ARR',
-        problemStatement: '**70% of SMEs in Malaysia still perform financial forecasting manually.** This results in inaccurate projections, delayed decision-making, and increased business failure rates.\n\nThe core problems:\n- **Manual business planning:** SMEs spend 15+ hours weekly on tasks that could be automated\n- **Fragmented tools:** Average SME uses 7+ disconnected tools for operations\n- **No AI access:** Enterprise-grade AI is unaffordable for SMEs (RM10K+/month)\n- **Poor financial literacy:** 60% of SME failures are due to cash flow mismanagement\n- **Regional gap:** Existing solutions are built for Western markets with no ASEAN localization',
-        solutionProduct: '**GangNiaga AI OS** — An autonomous AI business operating system that plans, analyzes, automates, and executes real business workflows.\n\n**Core Capabilities:**\n- AI Business Plan Generator — Professional 21-section proposals in minutes\n- Financial Forecasting Engine — Revenue, expenses, cash flow, P&L with AI advisor\n- Multi-Agent System — Autonomous AI workers that execute business tasks\n- Browser Automation — AI agents that interact with websites and extract data\n- Workflow Engine — Scheduled and event-triggered automations\n- Persistent Memory — Long-term organizational intelligence\n- KPI Dashboard — Real-time business intelligence with AI insights\n\n**Differentiation:** No other platform offers autonomous AI execution. Competitors are passive tools — GangNiaga is an active AI business partner.\n\n**Value Proposition:** Replace 7+ tools with 1 AI-powered platform. Save 20+ hours/week. Make better decisions with AI-driven insights.',
-        marketAnalysis: '**TAM (Total Addressable Market):** USD12.4B — Southeast Asian SaaS market by 2027\n**SAM (Serviceable Available Market):** USD3.8B — ASEAN SME business management software\n**SOM (Serviceable Obtainable Market):** USD190M — AI-powered business operations for ASEAN SMEs\n\n**Market Drivers:**\n- ASEAN SME digitalization push (government mandates)\n- AI adoption growing 28% CAGR in the region\n- Post-COVID shift to cloud-based business tools\n- Mobile-first market aligned with our platform\n\n**Target Segments:**\n1. Startup founders (RM199-599/mo tier)\n2. SME operators (RM599-1,999/mo tier)\n3. Enterprise teams (custom pricing)',
-        competitorAnalysis: '**Competitive Landscape:**\n\n**LivePlan** — Traditional business planning\n- Strength: Mature forecasting tools, bank-accepted templates\n- Weakness: No AI, no automation, Western-focused\n- Market Share: ~15% of SEA business planning market\n\n**Upmetrics** — AI-assisted planning\n- Strength: AI writing tools, modern UI\n- Weakness: Limited workflows, no agent system, no ASEAN localization\n- Market Share: ~5%\n\n**Notion / Monday.com** — General productivity\n- Strength: Large user base, strong brand\n- Weakness: Not purpose-built for business planning, no financial engine\n- Market Share: ~25% (general productivity)\n\n**GangNiaga Competitive Moat:** Multi-agent autonomous execution, ASEAN-first design, integrated financial engine, persistent AI memory. No competitor offers all four.',
-        businessModel: '**Revenue Model:**\n\n1. **SaaS Subscriptions** (70% of revenue)\n   - Starter: RM199/mo — Basic planning + dashboard\n   - Professional: RM599/mo — Full AI features + forecasting\n   - Enterprise: RM1,999/mo — Multi-agent + custom integrations\n\n2. **AI Usage Billing** (15% of revenue)\n   - Per-agent execution credits\n   - Browser automation sessions\n   - Advanced AI analysis requests\n\n3. **Professional Services** (10% of revenue)\n   - Custom implementation\n   - Training and onboarding\n   - White-label deployments\n\n4. **Marketplace Commissions** (5% of revenue)\n   - Third-party agent skills\n   - Integration connectors\n   - Template marketplace',
-        revenueStreams: '**Current Revenue Breakdown (Monthly):**\n\n- Starter Plan (380 users): RM75,620\n- Professional Plan (85 users): RM50,915\n- Enterprise Plan (12 accounts): RM23,988\n- AI Usage Credits: RM21,420\n- Professional Services: RM14,280\n- Marketplace: RM7,140\n\n**Total MRR: RM193,343**\n**Projected MRR (12 months): RM420,000**\n\n**Unit Economics:**\n- LTV: RM19,200 (avg 32-month retention)\n- CAC: RM2,560\n- LTV:CAC Ratio: 7.5:1\n- Payback Period: 4.2 months',
-        goToMarketStrategy: '**Customer Acquisition Strategy:**\n\n1. **Digital Marketing** (40% of marketing budget)\n   - SEO content targeting "business plan Malaysia", "financial forecast SME"\n   - Google Ads & LinkedIn Ads for B2B\n   - Webinar series: "AI untuk Bisnes Malaysia"\n\n2. **Partnership Channel** (30% of marketing budget)\n   - Accounting firms (referral program)\n   - SME Corp Malaysia partnership\n   - Bank partnerships (MUDAH, TEKUN)\n   - Chamber of Commerce networks\n\n3. **Product-Led Growth** (20% of marketing budget)\n   - Free AI business assessment tool\n   - Community template library\n   - Referral program (1 month free per referral)\n\n4. **Direct Sales** (10% of marketing budget)\n   - Enterprise sales team (3 reps)\n   - Demo-first approach\n   - ROI calculator custom presentations',
-        operationsPlan: '**Operational Structure:**\n\n**Current Team:** 12 people\n- Engineering: 6\n- Product & Design: 2\n- Sales & Marketing: 2\n- Operations: 1\n- Leadership: 1\n\n**Scaling Plan (with loan funding):**\n- Q1 2025: Hire 4 engineers, 2 sales reps\n- Q2 2025: Hire 3 customer success, 1 finance manager\n- Q3 2025: Open Indonesia office (5-person team)\n- Q4 2025: Thailand market entry (3-person team)\n\n**Execution Model:**\n- 2-week sprint cycles\n- CI/CD deployment pipeline\n- 99.9% uptime SLA for enterprise\n- 24/7 AI agent availability\n\n**Infrastructure:**\n- AWS Asia Pacific (Singapore region)\n- Multi-region deployment for latency\n- SOC 2 Type II compliance target: Q2 2025',
-        technologySystem: '**Technology Architecture:**\n\n**Frontend:** Next.js 16, React 19, TypeScript, Tailwind CSS\n**Backend:** Node.js, NestJS, Prisma ORM, PostgreSQL\n**AI Stack:** OpenAI GPT-4, LangGraph multi-agent, pgvector memory\n**Browser Automation:** Playwright, Chrome DevTools Protocol\n**Infrastructure:** AWS, Docker, Kubernetes, CloudFlare CDN\n\n**AI Systems:**\n- Agent Orchestrator — Routes tasks to specialized AI agents\n- Memory Engine — Persistent vector-store organizational intelligence\n- Skill Runtime — Modular execution capabilities\n- Financial Engine — Real-time forecasting and analysis\n\n**Security:**\n- End-to-end encryption (AES-256)\n- SOC 2 Type II in progress\n- GDPR & PDPA compliance\n- Isolated browser sandboxing\n- Multi-tenant data isolation\n\n**Scalability:**\n- Horizontal auto-scaling\n- Distributed queue (BullMQ)\n- Edge caching via CloudFlare\n- Sub-300ms API response target',
-        managementTeam: '**Leadership Team:**\n\n**CEO — Ahmad Razak**\n- 12 years in enterprise SaaS (ex-Microsoft, ex-SAP)\n- MBA from INSEAD\n- Previous startup: Acquired for RM45M\n- Responsibilities: Strategy, fundraising, partnerships\n\n**CTO — Sarah Lim**\n- 10 years in AI/ML engineering (ex-Grab, ex-Shopee)\n- PhD in Computer Science (NUS)\n- 3 published papers on multi-agent systems\n- Responsibilities: Product, engineering, AI strategy\n\n**Advisory Board:**\n- Former Deputy Governor, Bank Negara Malaysia\n- Partner, McKinsey Digital (Southeast Asia)\n- Founder, regional fintech unicorn\n\n**Key Hires Needed:**\n- VP of Sales (ASEAN experience required)\n- Head of Compliance (banking/finance background)',
-        financialForecast: '**3-Year Financial Projections:**\n\n**Year 1 (2025):**\n- Revenue: RM8.9M | Expenses: RM6.2M | Net Income: RM2.7M\n- Gross Margin: 82% | EBITDA Margin: 30%\n\n**Year 2 (2026):**\n- Revenue: RM22.4M | Expenses: RM11.8M | Net Income: RM10.6M\n- Gross Margin: 85% | EBITDA Margin: 47%\n\n**Year 3 (2027):**\n- Revenue: RM56.2M | Expenses: RM22.4M | Net Income: RM33.8M\n- Gross Margin: 87% | EBITDA Margin: 60%\n\n**Key Financial Metrics:**\n- Break-even: Q3 2025\n- Monthly Burn Rate: RM520K (declining)\n- Runway: 18 months (without loan)\n- DSCR: 1.45x (current), projected 2.1x by Year 2\n- Cash Flow from Operations: RM2.1M (Year 1)\n\n**Debt Service Coverage Ratio (DSCR):**\n- Net Operating Income: RM4.5M/year\n- Annual Debt Obligation: RM3.1M/year (RM2M loan @ 8% over 5 years)\n- Current DSCR: 1.45x\n- Projected DSCR (Year 2): 2.1x',
-        fundingRequirement: '**Funding Amount: RM2,000,000**\n\n**Type:** Term Loan (5-year tenure)\n\n**Purpose:**\nThis loan will fund our regional expansion across Southeast Asia, specifically to accelerate product development for bank-grade financial compliance and expand into Indonesia and Thailand markets.\n\n**Why This Amount:**\n- Provides 12 months of strategic runway beyond current cash\n- Enables key hires for compliance and regional teams\n- Funds market entry into 2 new ASEAN markets\n- Maintains DSCR above 1.25x throughout loan period\n\n**Repayment Capability:**\n- Current cash flow from operations: RM2.1M/year\n- Projected cash flow (Year 2): RM5.4M/year\n- DSCR remains above 1.25x in all scenarios\n- Break-even already achieved in current operations',
-        useOfFunds: '**Use of Funds Breakdown:**\n\n1. **Product Development** — RM750K (37.5%)\n   - Bank-grade compliance features\n   - Multi-currency financial engine\n   - PDPA/GDPR compliance module\n   - 4 additional engineers\n\n2. **Market Expansion** — RM500K (25%)\n   - Indonesia market entry\n   - Thailand market entry\n   - Localization (Bahasa Indonesia, Thai)\n   - Regional marketing campaigns\n\n3. **Sales & Marketing** — RM350K (17.5%)\n   - Partnership development (banks, SME Corp)\n   - Content marketing & SEO\n   - Sales team expansion\n   - Conference sponsorships\n\n4. **Operations & Infrastructure** — RM250K (12.5%)\n   - AWS scaling\n   - SOC 2 certification\n   - Compliance infrastructure\n   - Office setup (Jakarta)\n\n5. **Working Capital** — RM150K (7.5%)\n   - Cash flow buffer\n   - Emergency reserve\n   - Contingency fund',
-        riskAnalysis: '**Risk Assessment & Mitigation:**\n\n**Market Risk (Medium)**\n- Risk: ASEAN market adoption slower than projected\n- Mitigation: Staged market entry, freemium model, government partnership pipeline\n\n**Financial Risk (Low-Medium)**\n- Risk: Revenue concentration in top 10 accounts (28% of MRR)\n- Mitigation: Diversifying customer base, expanding mid-market segment\n\n**Operational Risk (Low)**\n- Risk: Key person dependency (CEO/CTO)\n- Mitigation: Building management bench, documenting processes, advisory board\n\n**AI/Technology Risk (Medium)**\n- Risk: AI regulation changes impacting product\n- Mitigation: Multi-model AI architecture, compliance-first design, regulatory advisory board member\n\n**Cybersecurity Risk (Medium)**\n- Risk: Data breach or security incident\n- Mitigation: SOC 2 Type II certification, encrypted data at rest/transit, regular penetration testing, bug bounty program\n\n**Competitive Risk (Low-Medium)**\n- Risk: Global SaaS players entering ASEAN market\n- Mitigation: Regional moat (localization, partnerships), first-mover advantage, proprietary AI memory system',
-        swotAnalysis: '**STRENGTHS:**\n- AI-autonomous execution (unique globally)\n- Multi-agent orchestration architecture\n- ASEAN-first design and localization\n- Strong technical team (ex-Grab, ex-Microsoft)\n- 500+ paying customers in 8 months\n- DSCR above bank minimum\n\n**WEAKNESSES:**\n- Early-stage company (less than 2 years)\n- Limited brand recognition outside Malaysia\n- Revenue concentration in top accounts\n- Small team for regional ambitions\n\n**OPPORTUNITIES:**\n- 65M SMEs across ASEAN\n- Government push for SME digitalization\n- AI adoption accelerating 28% CAGR\n- Bank partnership channel untapped\n- Indonesia market (270M population)\n\n**THREATS:**\n- Global SaaS players expanding to SEA\n- AI regulatory uncertainty\n- Talent competition from big tech\n- Currency fluctuation (RM/USD)\n- Economic slowdown affecting SME spending',
-        exitStrategy: '**Potential Exit Scenarios:**\n\n1. **Strategic Acquisition (Most Likely)**\n   - Target acquirers: Sage, Xero, Freshworks, regional tech conglomerates\n   - Expected timeline: Year 4-6\n   - Target valuation: 8-12x ARR (RM180M-RM670M)\n\n2. **Regional Expansion & Growth**\n   - Expand to 6 ASEAN markets\n   - Reach RM56M+ ARR by Year 3\n   - Position for Series B/C or IPO on Bursa Malaysia\n\n3. **Secondary Sale**\n   - Early investors can exit via secondary transactions\n   - Typical discount: 15-20% to primary valuation\n\n**Investment Moat Protection:**\n- Proprietary AI memory system (hard to replicate)\n- ASEAN-specific training data (regulatory advantage)\n- Bank partnership agreements (distribution moat)\n- Customer switching costs (data lock-in with persistent memory)',
-        appendices: '**Appendix A:** Detailed financial statements (P&L, Balance Sheet, Cash Flow)\n**Appendix B:** Customer testimonials and case studies\n**Appendix C:** Technical architecture diagrams\n**Appendix D:** SSM registration and company documents\n**Appendix E:** Team resumes and credentials\n**Appendix F:** Market research data sources\n**Appendix G:** Bank partnership term sheets\n**Appendix H:** Product roadmap 2025-2027\n**Appendix I:** Intellectual property filings\n**Appendix J:** Compliance certifications roadmap',
+        executiveSummary: '**GangNiaga AI OS** is Southeast Asia\'s first autonomous AI-powered business operating system, designed specifically for SMEs across the ASEAN region. We are seeking RM2,000,000 in term loan financing to accelerate product development and market expansion.\n\n**Key Highlights:**\n- Current MRR: RM620K (ARR: RM7.4M)\n- 18-month runway with current burn rate\n- DSCR: 1.45x (above bank minimum of 1.25x)\n- 97% of ASEAN businesses are SMEs, yet less than 15% use business planning software\n- Projected revenue growth: 132% YoY\n- Break-even projected: Q3 2025',
+        companyOverview: '**Company Background:**\nGangNiaga Sdn Bhd was incorporated in January 2024 under the Companies Act 2016. The company operates as a SaaS platform providing AI-powered business planning, financial forecasting, and autonomous workflow execution.\n\n**Registration:** SSM Reg. No. 2024012345\n**Legal Structure:** Private Limited Company (Sdn Bhd)\n**Ownership:** CEO: 60% equity, CTO: 25% equity, ESOP Pool: 15% equity',
+        problemStatement: '**70% of SMEs in Malaysia still perform financial forecasting manually.** This results in inaccurate projections, delayed decision-making, and increased business failure rates.',
+        solutionProduct: '**GangNiaga AI OS** — An autonomous AI business operating system that plans, analyzes, automates, and executes real business workflows.\n\n**Core Capabilities:**\n- AI Business Plan Generator — Professional 21-section proposals in minutes\n- Financial Forecasting Engine — Revenue, expenses, cash flow, P&L with AI advisor\n- Multi-Agent System — Autonomous AI workers that execute business tasks\n- Browser Automation — AI agents that interact with websites and extract data',
+        marketAnalysis: '**TAM:** USD12.4B — Southeast Asian SaaS market by 2027\n**SAM:** USD3.8B — ASEAN SME business management software\n**SOM:** USD190M — AI-powered business operations for ASEAN SMEs',
+        competitorAnalysis: '**LivePlan** — Traditional business planning. Strength: Mature tools. Weakness: No AI.\n**Upmetrics** — AI-assisted planning. Strength: Modern UI. Weakness: No agent system.\n**Notion / Monday.com** — General productivity. Strength: Large user base. Weakness: Not for business planning.',
+        businessModel: '**Revenue Model:**\n1. SaaS Subscriptions (70% of revenue) — Starter: RM199/mo, Professional: RM599/mo, Enterprise: RM1,999/mo\n2. AI Usage Billing (15%)\n3. Professional Services (10%)\n4. Marketplace Commissions (5%)',
+        financialForecast: '**3-Year Financial Projections:**\n\n**Year 1 (2025):** Revenue: RM8.9M | Net Income: RM2.7M | DSCR: 1.45x\n**Year 2 (2026):** Revenue: RM22.4M | Net Income: RM10.6M | DSCR: 2.1x\n**Year 3 (2027):** Revenue: RM56.2M | Net Income: RM33.8M | DSCR: 2.87x',
+        fundingRequirement: '**Funding Amount: RM2,000,000**\nType: Term Loan (5-year tenure)\nPurpose: Regional expansion across Southeast Asia',
+        useOfFunds: '**Use of Funds Breakdown:**\n1. Product Development — RM750K (37.5%)\n2. Market Expansion — RM500K (25%)\n3. Sales & Marketing — RM350K (17.5%)\n4. Operations — RM250K (12.5%)\n5. Working Capital — RM150K (7.5%)',
+        riskAnalysis: '**Risk Assessment:**\n- Market Risk (Medium): ASEAN adoption slower than projected\n- Financial Risk (Low-Medium): Revenue concentration in top accounts\n- Operational Risk (Low): Key person dependency\n- AI/Technology Risk (Medium): AI regulation changes',
+        swotAnalysis: '**STRENGTHS:** AI-autonomous execution, ASEAN-first design, 500+ paying customers\n**WEAKNESSES:** Early-stage, limited brand recognition\n**OPPORTUNITIES:** 65M SMEs across ASEAN, AI adoption 28% CAGR\n**THREATS:** Global SaaS players expanding to SEA, AI regulatory uncertainty',
+        exitStrategy: '**Potential Exit Scenarios:**\n1. Strategic Acquisition (Most Likely) — Target: Year 4-6, Valuation: 8-12x ARR\n2. Regional Expansion & Growth — Reach RM56M+ ARR by Year 3\n3. Secondary Sale — Early investors can exit via secondary transactions',
       },
       createdAt: '2024-01-10',
       updatedAt: '2024-01-15',
@@ -198,8 +218,8 @@ export const useAppStore = create<AppState>((set) => ({
       proposalType: 'venture_capital',
       industry: 'AI / ML',
       sections: {
-        executiveSummary: 'Following strong seed-stage traction with RM7.4M ARR and 500+ customers, GangNiaga is raising USD5M Series A to dominate the ASEAN AI business operations market. Our multi-agent autonomous platform is the only solution that doesn\'t just plan — it executes.',
-        marketAnalysis: 'TAM: USD12.4B | SAM: USD3.8B | SOM: USD190M. The AI adoption wave in ASEAN is our window — 28% CAGR means the market doubles every 2.5 years.',
+        executiveSummary: 'Following strong seed-stage traction with RM7.4M ARR and 500+ customers, GangNiaga is raising USD5M Series A to dominate the ASEAN AI business operations market.',
+        marketAnalysis: 'TAM: USD12.4B | SAM: USD3.8B | SOM: USD190M. AI adoption wave in ASEAN — 28% CAGR.',
       },
       createdAt: '2024-01-14',
       updatedAt: '2024-01-15',
@@ -241,5 +261,184 @@ export const useAppStore = create<AppState>((set) => ({
     { name: 'Oct', revenue: 445000, expenses: 208000, profit: 237000 },
     { name: 'Nov', revenue: 478000, expenses: 216000, profit: 262000 },
     { name: 'Dec', revenue: 512000, expenses: 225000, profit: 287000 },
+  ],
+
+  // ── NEW: Idea Canvas ──
+  ideaCanvases: [
+    {
+      id: '1',
+      title: 'GangNiaga AI OS — ASEAN SME Platform',
+      status: 'validated',
+      problem: '70% of ASEAN SMEs still use manual methods for business planning and financial forecasting. This leads to 60% failure rate within 3 years due to cash flow mismanagement.',
+      solution: 'An AI-autonomous business operating system that plans, analyzes, and executes business workflows autonomously — replacing 7+ disconnected tools with 1 intelligent platform.',
+      targetMarket: '65M SMEs across ASEAN, focusing initially on Malaysia (1.2M SMEs), then Indonesia (64M MSMEs) and Thailand (3.1M SMEs)',
+      revenueModel: 'SaaS subscriptions (3 tiers: RM199-1,999/mo), AI usage billing, professional services, and marketplace commissions. Target LTV:CAC of 7.5:1.',
+      competitiveEdge: 'Only platform offering autonomous AI agent execution (not just passive tools), ASEAN-first localization, integrated financial engine with DSCR calculations, and persistent AI memory.',
+      risks: ['ASEAN market adoption may be slower than projected', 'AI regulation uncertainty in the region', 'Global SaaS competitors (Notion, Monday) expanding to SEA', 'Currency fluctuation risk (RM/USD)', 'Talent competition from big tech companies'],
+      validationScore: 82,
+      validationReport: {
+        overallScore: 82,
+        marketViability: 88,
+        problemClarity: 90,
+        solutionFeasibility: 75,
+        revenuePotential: 85,
+        competitivePosition: 72,
+        riskLevel: 'medium',
+        strengths: ['Massive underserved market (65M SMEs)', 'Clear pain point with quantifiable impact', 'Strong technical moat with multi-agent AI', 'First-mover advantage in ASEAN AI business tools'],
+        weaknesses: ['Early-stage company (less than 2 years)', 'Revenue concentration in top accounts (28% MRR)', 'Team size too small for regional ambitions', 'No ISO/SOC2 certification yet'],
+        recommendations: ['Prioritize bank partnership channel for distribution', 'Accelerate Indonesia market entry for larger TAM', 'Build compliance moat with SOC2 certification', 'Diversify revenue to reduce concentration risk'],
+        redFlags: ['Burn rate of RM187K/month with only 18 months runway', 'No physical collateral for bank loan'],
+        benchmarkComparison: [
+          { metric: 'LTV:CAC Ratio', user: 7.5, benchmark: 3.0, status: 'above' },
+          { metric: 'Monthly Growth Rate', user: 11.1, benchmark: 8.0, status: 'above' },
+          { metric: 'Gross Margin', user: 82, benchmark: 70, status: 'above' },
+          { metric: 'Churn Rate', user: 3.2, benchmark: 2.5, status: 'below' },
+          { metric: 'Team Size / Revenue', user: 12, benchmark: 18, status: 'above' },
+        ],
+      },
+      createdAt: '2024-01-08',
+      updatedAt: '2024-01-12',
+    },
+    {
+      id: '2',
+      title: 'QuickCommerce — AI Inventory Optimizer',
+      status: 'draft',
+      problem: 'SME retailers in Malaysia lose 15-25% of revenue annually due to stockouts and overstock situations.',
+      solution: 'AI-powered inventory optimization that predicts demand patterns, automates reordering, and minimizes waste.',
+      targetMarket: '450,000 retail SMEs in Malaysia',
+      revenueModel: 'SaaS RM299/mo per outlet + transaction fees on automated orders',
+      competitiveEdge: 'Local market data training, integration with local suppliers, Bahasa Melayu native',
+      risks: ['Low digital adoption among traditional retailers', 'Supplier integration complexity'],
+      validationScore: 0,
+      validationReport: null,
+      createdAt: '2024-01-14',
+      updatedAt: '2024-01-14',
+    },
+  ],
+  selectedIdea: null,
+  setSelectedIdea: (id) => set({ selectedIdea: id }),
+
+  // ── NEW: Plan Reviews ──
+  planReviews: [
+    {
+      id: '1',
+      planId: '1',
+      status: 'completed',
+      lenderPersona: 'bank',
+      narrativeScore: 85,
+      financialScore: 78,
+      consistencyScore: 72,
+      overallScore: 78,
+      discrepancies: [
+        {
+          id: 'd1',
+          severity: 'warning',
+          section: 'Financial Forecast vs Executive Summary',
+          description: 'Executive summary states "132% YoY growth" but financial forecast shows 150% growth from Year 1 to Year 2',
+          narrativeClaim: '132% YoY revenue growth',
+          financialReality: 'Year 1 RM8.9M → Year 2 RM22.4M = 151.7% growth',
+          suggestedFix: 'Align executive summary with financial projections — use "150%+" or adjust Year 2 projections',
+        },
+        {
+          id: 'd2',
+          severity: 'critical',
+          section: 'Use of Funds vs Financial Forecast',
+          description: 'Use of Funds allocates RM750K to product development but operations plan shows hiring 4 engineers at estimated RM480K/year — gap of RM270K unexplained',
+          narrativeClaim: 'RM750K allocated to Product Development',
+          financialReality: '4 engineers × RM10K/mo = RM480K/year — remaining RM270K not itemized',
+          suggestedFix: 'Add detailed engineering budget breakdown showing RM480K salaries + RM270K tools/infrastructure',
+        },
+        {
+          id: 'd3',
+          severity: 'info',
+          section: 'Market Analysis vs Revenue Streams',
+          description: 'Market analysis targets 3 customer segments but revenue streams only detail 2 pricing tiers with significant overlap',
+          narrativeClaim: '3 distinct target segments: startups, SMEs, enterprise',
+          financialReality: 'Starter and Professional plans overlap for SME segment',
+          suggestedFix: 'Consider restructuring tiers to clearly map to 3 segments',
+        },
+      ],
+      recommendations: [
+        { id: 'r1', priority: 'high', category: 'Consistency', recommendation: 'Fix growth rate discrepancy between executive summary and financial projections', impact: 'Critical for bank credibility — lenders will catch this immediately' },
+        { id: 'r2', priority: 'high', category: 'Detail', recommendation: 'Add detailed engineering budget breakdown in Use of Funds section', impact: 'Shows financial discipline and planning rigor' },
+        { id: 'r3', priority: 'medium', category: 'Bank Requirements', recommendation: 'Add collateral section — banks need to know what secures the RM2M loan', impact: 'Essential for loan approval — missing collateral discussion is a red flag' },
+        { id: 'r4', priority: 'medium', category: 'DSCR', recommendation: 'Add sensitivity analysis showing DSCR under worst-case scenario', impact: 'Banks want to see DSCR remains above 1.25x even in downside case' },
+        { id: 'r5', priority: 'low', category: 'Presentation', recommendation: 'Add personal guarantees section from CEO/CTO', impact: 'Strengthens lender confidence in management commitment' },
+      ],
+      fullReport: null,
+      createdAt: '2024-01-15',
+    },
+  ],
+  selectedReview: null,
+  setSelectedReview: (id) => set({ selectedReview: id }),
+
+  // ── NEW: Plan vs Actuals ──
+  planActuals: [
+    { id: '1', category: 'revenue', period: '2025-01', plannedAmount: 186000, actualAmount: 191200, variance: 5200, variancePercent: 2.8, source: 'manual' },
+    { id: '2', category: 'revenue', period: '2025-02', plannedAmount: 205000, actualAmount: 212400, variance: 7400, variancePercent: 3.6, source: 'manual' },
+    { id: '3', category: 'revenue', period: '2025-03', plannedAmount: 237000, actualAmount: 228600, variance: -8400, variancePercent: -3.5, source: 'manual' },
+    { id: '4', category: 'expense', period: '2025-01', plannedAmount: 142000, actualAmount: 148900, variance: 6900, variancePercent: 4.9, source: 'manual' },
+    { id: '5', category: 'expense', period: '2025-02', plannedAmount: 148000, actualAmount: 151200, variance: 3200, variancePercent: 2.2, source: 'manual' },
+    { id: '6', category: 'expense', period: '2025-03', plannedAmount: 155000, actualAmount: 162400, variance: 7400, variancePercent: 4.8, source: 'manual' },
+    { id: '7', category: 'cashflow', period: '2025-01', plannedAmount: 44000, actualAmount: 42300, variance: -1700, variancePercent: -3.9, source: 'manual' },
+    { id: '8', category: 'cashflow', period: '2025-02', plannedAmount: 57000, actualAmount: 61200, variance: 4200, variancePercent: 7.4, source: 'manual' },
+    { id: '9', category: 'cashflow', period: '2025-03', plannedAmount: 82000, actualAmount: 66200, variance: -15800, variancePercent: -19.3, source: 'manual' },
+    { id: '10', category: 'profit', period: '2025-01', plannedAmount: 44000, actualAmount: 42300, variance: -1700, variancePercent: -3.9, source: 'manual' },
+    { id: '11', category: 'profit', period: '2025-02', plannedAmount: 57000, actualAmount: 61200, variance: 4200, variancePercent: 7.4, source: 'manual' },
+    { id: '12', category: 'profit', period: '2025-03', plannedAmount: 82000, actualAmount: 66200, variance: -15800, variancePercent: -19.3, source: 'manual' },
+  ],
+  integrations: [
+    { type: 'quickbooks', status: 'disconnected', lastSync: null, syncFrequency: 'monthly' },
+    { type: 'xero', status: 'disconnected', lastSync: null, syncFrequency: 'monthly' },
+    { type: 'manual', status: 'connected', lastSync: '2024-01-15T10:30:00Z', syncFrequency: 'monthly' },
+  ],
+  varianceAlerts: [
+    { id: 'va1', category: 'cashflow', period: '2025-03', type: 'cashflow_warning', message: 'Cash flow variance of -19.3% exceeds the 15% warning threshold. Actual cash flow was RM66.2K vs planned RM82K.', severity: 'critical', amount: -15800 },
+    { id: 'va2', category: 'expense', period: '2025-03', type: 'expense_over', message: 'Expenses exceeded plan by 4.8% in March. Primary driver: unexpected infrastructure scaling costs.', severity: 'warning', amount: 7400 },
+    { id: 'va3', category: 'revenue', period: '2025-03', type: 'revenue_drift', message: 'Revenue tracking 3.5% below plan. Monitor closely — if trend continues, break-even timeline may shift.', severity: 'info', amount: -8400 },
+  ],
+
+  // ── NEW: Pitch Decks ──
+  pitchDecks: [
+    {
+      id: '1',
+      title: 'GangNiaga AI OS — Bank Loan Pitch',
+      status: 'completed',
+      planId: '1',
+      templateType: 'bank',
+      slides: [
+        { id: 's1', order: 1, title: 'GangNiaga AI OS', type: 'title', content: 'Autonomous AI Business Operating System\nBank Loan Proposal — RM2,000,000\nJanuary 2025', linkedSection: 'coverPage' },
+        { id: 's2', order: 2, title: 'The Problem', type: 'problem', content: '70% of ASEAN SMEs use manual methods for business planning\n60% fail within 3 years due to cash flow mismanagement\n15+ hours/week wasted on tasks that could be automated', dataPoints: { 'SMEs using manual methods': '70%', '3-year failure rate': '60%', 'Hours wasted weekly': '15+' }, linkedSection: 'problemStatement' },
+        { id: 's3', order: 3, title: 'Our Solution', type: 'solution', content: 'AI-autonomous platform that plans, analyzes, and executes\nMulti-agent system with persistent memory\n21-section professional proposal generator\nIntegrated financial engine with DSCR calculations', linkedSection: 'solutionProduct' },
+        { id: 's4', order: 4, title: 'Market Opportunity', type: 'market', content: 'TAM: USD12.4B — SAM: USD3.8B — SOM: USD190M\n65M SMEs across ASEAN\nAI adoption growing 28% CAGR', dataPoints: { 'TAM': 'USD12.4B', 'SAM': 'USD3.8B', 'SOM': 'USD190M', 'ASEAN SMEs': '65M' }, linkedSection: 'marketAnalysis' },
+        { id: 's5', order: 5, title: 'Business Model', type: 'business_model', content: 'SaaS Subscriptions: 70% of revenue\nAI Usage Billing: 15%\nProfessional Services: 10%\nMarketplace: 5%\n\nLTV:CAC Ratio: 7.5:1', dataPoints: { 'LTV:CAC': '7.5:1', 'MRR': 'RM193K', 'Gross Margin': '82%' }, linkedSection: 'businessModel' },
+        { id: 's6', order: 6, title: 'Financial Projections', type: 'financials', content: 'Year 1: RM8.9M revenue | DSCR 1.45x\nYear 2: RM22.4M revenue | DSCR 2.1x\nYear 3: RM56.2M revenue | DSCR 2.87x\n\nBreak-even: Q3 2025', dataPoints: { 'Year 1 Revenue': 'RM8.9M', 'Year 2 Revenue': 'RM22.4M', 'Year 3 Revenue': 'RM56.2M', 'DSCR Current': '1.45x' }, linkedSection: 'financialForecast' },
+        { id: 's7', order: 7, title: 'The Ask', type: 'ask', content: 'Seeking RM2,000,000 term loan (5-year tenure)\n\nUse of Funds:\n- Product Development: 37.5%\n- Market Expansion: 25%\n- Sales & Marketing: 17.5%\n- Operations: 12.5%\n- Working Capital: 7.5%', dataPoints: { 'Loan Amount': 'RM2M', 'Tenure': '5 years', 'DSCR': '1.45x' }, linkedSection: 'fundingRequirement' },
+      ],
+      slideCount: 7,
+      anticipatedQuestions: [
+        { id: 'q1', question: 'What happens to DSCR if revenue drops 30%?', category: 'Financial', suggestedAnswer: 'Even with a 30% revenue reduction, DSCR remains above 1.0x due to our low fixed cost structure. We\'d implement cost-cutting measures within 30 days to restore DSCR above 1.25x.', difficulty: 'hard' },
+        { id: 'q2', question: 'What collateral backs this loan?', category: 'Collateral', suggestedAnswer: 'We offer the following collateral: intellectual property (AI platform), equipment and infrastructure deposits, personal guarantees from CEO and CTO, and the company\'s receivables portfolio.', difficulty: 'hard' },
+        { id: 'q3', question: 'Why hasn\'t a bigger company built this?', category: 'Competitive', suggestedAnswer: 'Global SaaS companies build for Western markets with Western assumptions. ASEAN SMEs have unique needs: multi-currency, local compliance, language localization, and cultural business practices. Our AI memory engine learns these nuances.', difficulty: 'medium' },
+        { id: 'q4', question: 'How do you plan to use the loan proceeds?', category: 'Use of Funds', suggestedAnswer: '37.5% for product development (bank-grade compliance features, 4 additional engineers), 25% for market expansion (Indonesia and Thailand entry), 17.5% for sales and marketing, 12.5% for operations infrastructure, and 7.5% for working capital buffer.', difficulty: 'easy' },
+      ],
+      createdAt: '2024-01-15',
+    },
+  ],
+  selectedDeck: null,
+  setSelectedDeck: (id) => set({ selectedDeck: id }),
+
+  // ── NEW: Citations ──
+  citations: [
+    { id: 'c1', source: 'Statista — Digital Market Outlook Southeast Asia', url: 'https://statista.com/outlook/digital/sea', type: 'market_data', geography: 'SEA', datePublished: '2024-06', dataPoint: 'SEA SaaS market size USD12.4B by 2027', verified: true, createdAt: '2024-01-10' },
+    { id: 'c2', source: 'World Bank — Malaysia Economic Monitor', url: 'https://worldbank.org/malaysia-monitor', type: 'government', geography: 'MY', datePublished: '2024-03', dataPoint: '97% of Malaysian businesses are SMEs', verified: true, createdAt: '2024-01-10' },
+    { id: 'c3', source: 'DOSM — Department of Statistics Malaysia', url: 'https://dosm.gov.my', type: 'government', geography: 'MY', datePublished: '2023-12', dataPoint: '1.2M SMEs in Malaysia contributing 38% to GDP', verified: true, createdAt: '2024-01-10' },
+    { id: 'c4', source: 'Google-Temasek-Bain e-Conomy SEA Report', url: 'https://bain.com/sea-digital-economy', type: 'industry_report', geography: 'SEA', datePublished: '2024-11', dataPoint: 'AI adoption in SEA growing at 28% CAGR', verified: true, createdAt: '2024-01-11' },
+    { id: 'c5', source: 'SME Corp Malaysia — SME Annual Report', url: 'https://smecorp.gov.my/report', type: 'government', geography: 'MY', datePublished: '2023-10', dataPoint: '60% of SME failures due to cash flow mismanagement', verified: true, createdAt: '2024-01-11' },
+    { id: 'c6', source: 'McKinsey Digital — Southeast Asia Tech Report', url: 'https://mckinsey.com/sea-tech', type: 'industry_report', geography: 'SEA', datePublished: '2024-08', dataPoint: 'Only 15% of ASEAN SMEs use business planning software', verified: true, createdAt: '2024-01-12' },
+    { id: 'c7', source: 'Bank Negara Malaysia — Financial Stability Review', url: 'https://bnm.gov.my/fsr', type: 'financial', geography: 'MY', datePublished: '2024-09', dataPoint: 'Minimum DSCR 1.25x required for SME term loan approval', verified: true, createdAt: '2024-01-12' },
+    { id: 'c8', source: 'Gartner — SaaS Market Forecast APAC', url: 'https://gartner.com/saas-apac', type: 'market_data', geography: 'SEA', datePublished: '2024-05', dataPoint: 'SaaS growth rate in APAC: 18% YoY', verified: false, createdAt: '2024-01-13' },
+    { id: 'c9', source: 'OECD — SME and Entrepreneurship Outlook', url: 'https://oecd.org/sme-outlook', type: 'benchmark', geography: 'Global', datePublished: '2024-04', dataPoint: 'SME digitalization benchmark: 45% adoption rate', verified: true, createdAt: '2024-01-14' },
+    { id: 'c10', source: 'IDC — ASEAN Cloud and AI Survey', url: 'https://idc.com/asean-cloud-ai', type: 'industry_report', geography: 'SEA', datePublished: '2024-07', dataPoint: 'Indonesia MSME market: 64M entities, growing 12% annually', verified: true, createdAt: '2024-01-14' },
   ],
 }));

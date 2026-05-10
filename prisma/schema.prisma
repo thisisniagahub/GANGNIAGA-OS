@@ -34,6 +34,12 @@ model Organization {
   reports     Report[]
   kpis        KPIData[]
   memories    AgentMemory[]
+  ideaCanvases IdeaCanvas[]
+  planReviews PlanReview[]
+  planActuals PlanActual[]
+  pitchDecks  PitchDeck[]
+  citations   Citation[]
+  integrations Integration[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -140,6 +146,111 @@ model Report {
   status         String       @default("generated")
   content        String?      // JSON string
   format         String       @default("pdf")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ── NEW: Idea Canvas & Validation Engine ──
+
+model IdeaCanvas {
+  id             String       @id @default(cuid())
+  title          String
+  status         String       @default("draft") // draft, validating, validated, needs_rework
+  problem        String?
+  solution       String?
+  targetMarket   String?
+  revenueModel   String?
+  competitiveEdge String?
+  risks          String?      // JSON array
+  validationScore Float?      @default(0) // 0-100
+  validationReport String?    // JSON
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ── NEW: Plan Review Agent Results ──
+
+model PlanReview {
+  id             String       @id @default(cuid())
+  planId         String
+  status         String       @default("pending") // pending, running, completed
+  lenderPersona  String       @default("bank") // bank, investor, grant_officer
+  narrativeScore Float?       @default(0) // 0-100
+  financialScore Float?       @default(0) // 0-100
+  consistencyScore Float?     @default(0) // 0-100
+  overallScore   Float?       @default(0) // 0-100
+  discrepancies  String?     // JSON array of flagged issues
+  recommendations String?    // JSON array
+  fullReport     String?     // JSON
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ── NEW: Plan vs Actuals Tracking ──
+
+model PlanActual {
+  id             String       @id @default(cuid())
+  category       String       // revenue, expense, cashflow, profit
+  period         String       // 2025-01, 2025-02, etc.
+  plannedAmount  Float        @default(0)
+  actualAmount   Float?       @default(0)
+  variance       Float?       @default(0)
+  variancePercent Float?      @default(0)
+  source         String       @default("manual") // manual, quickbooks, xero
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ── NEW: Pitch Deck ──
+
+model PitchDeck {
+  id             String       @id @default(cuid())
+  title          String
+  status         String       @default("draft") // draft, generating, completed
+  planId         String?      // linked business plan
+  templateType   String       @default("investor") // investor, bank, grant
+  slides         String?      // JSON array of slide data
+  slideCount     Int          @default(0)
+  anticipatedQuestions String? // JSON array
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ── NEW: Citations (Bank-Grade Research) ──
+
+model Citation {
+  id             String       @id @default(cuid())
+  source         String       // name of source
+  url            String?
+  type           String       @default("market_data") // market_data, industry_report, benchmark, government, financial
+  geography      String?      // MY, SEA, Global
+  datePublished  String?
+  dataPoint      String?      // what data was extracted
+  verified       Boolean      @default(false)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+}
+
+// ── NEW: Integrations (QuickBooks/Xero) ──
+
+model Integration {
+  id             String       @id @default(cuid())
+  type           String       // quickbooks, xero, manual
+  status         String       @default("disconnected") // connected, disconnected, error
+  lastSync       DateTime?
+  syncFrequency  String       @default("monthly") // daily, weekly, monthly
+  config         String?      // JSON
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime     @default(now())

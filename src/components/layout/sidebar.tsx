@@ -21,6 +21,11 @@ import {
   ChevronRight,
   Sparkles,
   Zap,
+  Scale,
+  Lightbulb,
+  GitCompareArrows,
+  Presentation,
+  Search,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -35,10 +40,15 @@ const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, accent: 'text-emerald-500' },
   { id: 'business-plans', label: 'Business Plans', icon: FileText, accent: 'text-amber-500' },
   { id: 'financials', label: 'Financials', icon: LineChart, accent: 'text-teal-500' },
+  { id: 'plan-review', label: 'Plan Review', icon: Scale, accent: 'text-emerald-500' },
   { id: 'agents', label: 'Agent Console', icon: Bot, accent: 'text-cyan-500' },
   { id: 'workflows', label: 'Workflows', icon: Workflow, accent: 'text-rose-500' },
   { id: 'memory', label: 'Memory Engine', icon: Brain, accent: 'text-amber-500' },
   { id: 'reports', label: 'Reports', icon: BarChart3, accent: 'text-emerald-500' },
+  { id: 'plan-actuals', label: 'Plan vs Actuals', icon: GitCompareArrows, accent: 'text-cyan-500' },
+  { id: 'idea-canvas', label: 'Idea Canvas', icon: Lightbulb, accent: 'text-emerald-500' },
+  { id: 'pitch-deck', label: 'Pitch Deck', icon: Presentation, accent: 'text-teal-500' },
+  { id: 'research', label: 'Research Agent', icon: Search, accent: 'text-emerald-500' },
   { id: 'settings', label: 'Settings', icon: Settings, accent: 'text-muted-foreground' },
 ];
 

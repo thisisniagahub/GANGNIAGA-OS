@@ -10,8 +10,13 @@ import AgentsModule from '@/components/modules/agents';
 import WorkflowsModule from '@/components/modules/workflows';
 import MemoryModule from '@/components/modules/memory';
 import ReportsModule from '@/components/modules/reports';
+import PlanActualsModule from '@/components/modules/plan-actuals';
 import SettingsModule from '@/components/modules/settings';
 import CopilotPanel from '@/components/modules/copilot';
+import PitchDeckModule from '@/components/modules/pitch-deck';
+import IdeaCanvasModule from '@/components/modules/idea-canvas';
+import PlanReviewModule from '@/components/modules/plan-review';
+import ResearchModule from '@/components/modules/research';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const moduleComponents: Record<string, React.ComponentType> = {
@@ -22,7 +27,12 @@ const moduleComponents: Record<string, React.ComponentType> = {
   workflows: WorkflowsModule,
   memory: MemoryModule,
   reports: ReportsModule,
+  'plan-actuals': PlanActualsModule,
   settings: SettingsModule,
+  'idea-canvas': IdeaCanvasModule,
+  'plan-review': PlanReviewModule,
+  'pitch-deck': PitchDeckModule,
+  'research': ResearchModule,
 };
 
 export default function GangNiagaAIOS() {

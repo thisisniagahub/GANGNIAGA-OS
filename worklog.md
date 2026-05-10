@@ -1,92 +1,134 @@
+# GangNiaga AI OS — Worklog
+
 ---
 Task ID: 1
-Agent: Main Agent
-Task: Update types and store for 21-section professional business proposal structure
+Agent: Main Orchestrator
+Task: Update Prisma schema for new LivePlan-inspired modules
 
 Work Log:
-- Added ProposalType: bank_loan, government_grant, angel_investor, venture_capital, sme_financing, corporate_partnership
-- Added ProposalSectionKey with 21 section keys
-- Added ProposalSections interface with all 21 optional string fields
-- Updated BusinessPlanData to include proposalType, industry fields
-- Added UseOfFundsItem and CompetitorRow interfaces
-- Updated store KPIs to include DSCR (1.45x) with ratio unit
-- Updated store plans with 3 proposal types (bank_loan, venture_capital, government_grant)
-- Bank loan proposal includes all 21 sections with comprehensive Malaysian/ASEAN content
-- Changed all currency references from $ to RM (Malaysian Ringgit)
+- Added 7 new models to prisma/schema.prisma: IdeaCanvas, PlanReview, PlanActual, PitchDeck, Citation, Integration
+- Added relations on Organization model for all new models
+- Ran `bun run db:push` successfully
 
 Stage Summary:
-- Types fully support 21-section professional business proposal structure
-- 6 proposal types defined with distinct focus areas
-- Store includes rich mock data with bank loan DSCR metrics
+- Database schema now supports all 5 new LivePlan-inspired modules
+- All models use SQLite-compatible types
 
 ---
 Task ID: 2
-Agent: Subagent
-Task: Upgrade Business Plans module to professional 21-section proposal structure
+Agent: Main Orchestrator
+Task: Update TypeScript types and Zustand store with new data models
 
 Work Log:
-- Created SECTION_META with all 21 sections grouped into 6 logical groups
-- Created PROPOSAL_TYPE_CONFIG with 6 proposal types, each with color, icon, focus hint
-- Redesigned left panel with proposal type badges and X/21 progress
-- Redesigned right panel with grouped section tabs
-- Added AI generation via /api/business-plan with proposal-type-aware prompts
-- Added New Proposal dialog with proposal type selector
+- Added 7 new type definitions to lib/types.ts: IdeaCanvasData, ValidationReport, PlanReviewData, Discrepancy, ReviewRecommendation, PlanActualData, IntegrationData, VarianceAlert, PitchDeckData, PitchSlide, AnticipatedQuestion, CitationData
+- Extended ModuleId to include: idea-canvas, plan-review, plan-actuals, pitch-deck, research
+- Updated Zustand store with comprehensive mock data for all 5 new modules
+- Added 2 new agents to agent list (Plan Review Agent, Citation Verifier)
+- Added 10 citations with verified/unverified status
+- Added 12 plan vs actual data entries with variance calculations
+- Added 1 complete pitch deck with 7 slides and 4 anticipated questions
 
 Stage Summary:
-- Business Plans module now supports 21-section professional proposals
-- 6 proposal types with distinct focus areas (bank, grant, investor, VC, SME, corporate)
-- Malaysian/ASEAN business context (RM currency, SSM registration, BNM, MDEC)
-- AI generation is proposal-type-aware
+- All type definitions are complete and consistent
+- Store has rich mock data for immediate rendering
+- 5 new ModuleId routes added
 
 ---
 Task ID: 3
-Agent: Subagent
-Task: Update Financials module with DSCR and bank-focused metrics
+Agent: Subagent (full-stack-developer)
+Task: Build Idea Canvas & Validation Engine module
 
 Work Log:
-- Added DSCR card to Overview tab (1.45x with emerald color coding)
-- Added Break-even Point card (Q3 2025)
-- Added new Bank Metrics tab with DSCR Calculator, Collateral Coverage, Cash Flow Adequacy, Bank Approval Readiness checklist
-- Added DSCR rows to P&L and Cash Flow sub-tabs
-- Added bank-specific insights to Forecast Advisor tab
+- Created src/components/modules/idea-canvas.tsx
+- Built 2-panel layout with idea list and canvas/validation views
+- Implemented SVG score gauge and radar chart
+- Added benchmark comparison, red flags, strengths/weaknesses cards
+- Added new idea dialog and AI validation trigger
 
 Stage Summary:
-- Financials module now includes bank-loan-critical metrics (DSCR, collateral, cash flow)
-- Bank Approval Readiness checklist shows criteria status
-- DSCR gauge visualization with 4 color zones
+- IdeaCanvasModule is complete and renders mock data
+- AI validation calls /api/idea-canvas POST endpoint
 
 ---
 Task ID: 4
-Agent: Subagent
-Task: Update Business Plan API route with comprehensive 21-section prompts
+Agent: Subagent (full-stack-developer)
+Task: Build Bank-Grade Research Agent with Citation System
 
 Work Log:
-- Created proposal-type-aware prompt system for all 21 sections
-- Bank loan: conservative tone, DSCR focus, repayment capability
-- Government grant: social impact, Bumiputera agenda, job creation
-- VC: growth, scalability, technology moat
-- Malaysian/ASEAN context throughout (RM, SSM, MDEC, MIDA, PDPA)
-- Input validation for section and proposalType
+- Created src/components/modules/research.tsx
+- Built 3-tab layout: Citation Library, Verification Queue, Source Map
+- Implemented search, filter, geography filter, verified-only toggle
+- Added citation detail dialog, add citation dialog
+- Added verification queue with AI auto-verification
+- Added copy citation with feedback
 
 Stage Summary:
-- API generates proposal-type-specific content for all 21 sections
-- Malaysian business context integrated
-- Bank loan content includes DSCR calculations and conservative projections
+- ResearchModule is complete with all 10 mock citations rendered
+- Type-colored badges, geography indicators, verified/unverified status all working
 
 ---
 Task ID: 5
-Agent: Main Agent
-Task: Update Dashboard with bank-friendly metrics
+Agent: Subagent (full-stack-developer)
+Task: Build Plan Review Agent (Lender Persona) module
 
 Work Log:
-- Added Shield icon for DSCR
-- Added DSCR: Shield to kpiIcons mapping
-- Fixed isPositive logic for Burn Rate and DSCR
-- Updated AI Insights with DSCR and break-even insights
-- Changed all $ to RM currency formatting
-- Added ratio unit support (1.45x format)
+- Created src/components/modules/plan-review.tsx
+- Built 4 SVG score gauges (Narrative, Financial, Consistency, Overall)
+- Implemented expandable discrepancy cards with severity coding
+- Added side-by-side narrative vs financial comparison
+- Added recommendations tab with priority badges
+- Created /api/plan-review route with z-ai-web-dev-sdk
 
 Stage Summary:
-- Dashboard displays DSCR KPI with proper formatting
-- All currency shows RM (Malaysian Ringgit)
-- AI Insights include bank-loan-relevant insights
+- PlanReviewModule renders the existing mock review beautifully
+- Lender persona selector (Bank/Investor/Grant Officer) implemented
+
+---
+Task ID: 6
+Agent: Subagent (full-stack-developer)
+Task: Build Plan vs Actuals Tracking System
+
+Work Log:
+- Created src/components/modules/plan-actuals.tsx
+- Built integration bar (QuickBooks/Xero/Manual)
+- Implemented ComposedChart with planned vs actual bars and variance line
+- Added detailed variance table with color coding
+- Added variance alerts with severity (critical/warning/info)
+- Built "Can You Afford to Hire?" calculator
+
+Stage Summary:
+- PlanActualsModule renders all 12 mock entries with Recharts visualizations
+- QuickBooks/Xero connect dialogs (UI mock) included
+
+---
+Task ID: 7
+Agent: Subagent (full-stack-developer)
+Task: Build Dynamic Pitch Deck Orchestrator
+
+Work Log:
+- Created src/components/modules/pitch-deck.tsx
+- Built slide carousel with prev/next navigation
+- Implemented mini slide preview with color-coded type headers
+- Added data points table and linked section indicators
+- Built anticipated questions view with difficulty badges
+- Created /api/pitch-deck route with z-ai-web-dev-sdk
+
+Stage Summary:
+- PitchDeckModule renders the mock deck with 7 slides and 4 questions
+- Template type badges (Investor/Bank/Grant) implemented
+
+---
+Task ID: 8
+Agent: Main Orchestrator
+Task: Wire all modules into sidebar and page.tsx
+
+Work Log:
+- Updated sidebar navItems with all 5 new modules
+- Added ResearchModule to page.tsx moduleComponents map
+- Created /api/idea-canvas route with z-ai-web-dev-sdk
+- Fixed duplicate imports in page.tsx
+
+Stage Summary:
+- All 13 modules are registered and routeable
+- 3 new API routes created (idea-canvas, plan-review, pitch-deck)
+- Lint passes clean, dev server running with 200s
