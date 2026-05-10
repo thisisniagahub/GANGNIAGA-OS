@@ -25,6 +25,7 @@ import {
   Search,
   PlusCircle,
   FlaskConical,
+  Radio,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -67,6 +68,12 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    title: 'Connectivity',
+    items: [
+      { id: 'openclaw', label: 'OpenClaw Gateway', icon: Radio, accent: 'text-orange-500' },
+    ],
+  },
+  {
     title: 'Output',
     items: [
       { id: 'pitch-deck', label: 'Pitch Deck', icon: Presentation, accent: 'text-teal-500' },
@@ -83,7 +90,7 @@ const navGroups: NavGroup[] = [
 ];
 
 export default function Sidebar() {
-  const { activeModule, setActiveModule, sidebarCollapsed, toggleSidebar, toggleCopilot, plans, agents, varianceAlerts } = useAppStore();
+  const { activeModule, setActiveModule, sidebarCollapsed, toggleSidebar, toggleCopilot, plans, agents, varianceAlerts, openclawChannels } = useAppStore();
 
   // Compute badge counts from store
   const plansCount = plans.length;
@@ -94,12 +101,14 @@ export default function Sidebar() {
     'business-plans': plansCount,
     'agents': runningAgentsCount,
     'plan-actuals': criticalAlertsCount,
+    'openclaw': openclawChannels.filter(c => c.status === 'connected').length,
   };
 
   const badgeColorMap: Record<string, string> = {
     'business-plans': 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
     'agents': 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
     'plan-actuals': 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+    'openclaw': 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
   };
 
   return (

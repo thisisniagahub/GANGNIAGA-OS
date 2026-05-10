@@ -40,6 +40,12 @@ model Organization {
   pitchDecks  PitchDeck[]
   citations   Citation[]
   integrations Integration[]
+  openclawChannels OpenClawChannel[]
+  openclawGateways OpenClawGateway[]
+  openclawPlugins OpenClawPlugin[]
+  openclawDelegates OpenClawDelegate[]
+  openclawWebhooks OpenClawWebhook[]
+  openclawScheduledTasks OpenClawScheduledTask[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -255,4 +261,112 @@ model Integration {
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+}
+
+// ── OpenClaw Integration ──
+
+model OpenClawChannel {
+  id             String   @id @default(cuid())
+  type           String   // whatsapp, telegram, discord, slack, etc.
+  name           String
+  status         String   @default("disconnected") // connected, disconnected, connecting, error, pending_approval
+  lastMessage    String?
+  lastMessageAt  DateTime?
+  messageCount   Int      @default(0)
+  config         String?  // JSON object
+  pairedAt       DateTime?
+  avatarUrl      String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OpenClawGateway {
+  id               String   @id @default(cuid())
+  status           String   @default("unconfigured") // running, stopped, starting, error, unconfigured
+  bindHost         String   @default("127.0.0.1")
+  bindPort         Int      @default(18789)
+  uptime           Int      @default(0) // seconds
+  connectedClients Int      @default(0)
+  activeChannels   Int      @default(0)
+  totalMessages    Int      @default(0)
+  lastHealthCheck  DateTime?
+  version          String?
+  config           String?  // JSON object with authMode, logLevel, etc.
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model OpenClawPlugin {
+  id             String   @id @default(cuid())
+  name           String
+  version        String   @default("1.0.0")
+  description    String?
+  author         String?
+  capabilities   String?  // JSON array
+  status         String   @default("available") // installed, enabled, disabled, error, available
+  source         String   @default("clawhub") // bundled, clawhub, local
+  installedAt    DateTime?
+  lastUpdated    DateTime?
+  config         String?  // JSON object
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OpenClawDelegate {
+  id             String   @id @default(cuid())
+  name           String
+  email          String
+  displayName    String
+  tier           String   @default("tier1_readonly") // tier1_readonly, tier2_send_behalf, tier3_proactive
+  status         String   @default("setup") // active, inactive, suspended, setup
+  channels       String?  // JSON array of channel types
+  principalName  String?
+  principalEmail String?
+  standingOrders String?  // JSON array
+  tasksCompleted Int      @default(0)
+  lastActivity   DateTime?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OpenClawWebhook {
+  id             String   @id @default(cuid())
+  name           String
+  url            String
+  method         String   @default("POST")
+  events         String?  // JSON array
+  status         String   @default("active")
+  lastTriggered  DateTime?
+  triggerCount   Int      @default(0)
+  secret         String?
+  headers        String?  // JSON object
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OpenClawScheduledTask {
+  id             String   @id @default(cuid())
+  name           String
+  cronExpression String
+  status         String   @default("active") // active, paused, error, completed
+  agentId        String?
+  prompt         String?
+  channel        String?
+  lastRun        DateTime?
+  nextRun        DateTime?
+  runCount       Int      @default(0)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

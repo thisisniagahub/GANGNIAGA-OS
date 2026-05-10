@@ -1,0 +1,98 @@
+{
+  "name": "gangniaga-business-os",
+  "version": "1.0.0",
+  "description": "GangNiaga AI OS — Autonomous AI-powered business operating system for ASEAN SMEs. Integrates with OpenClaw gateway to provide business planning, financial forecasting, and multi-agent automation across WhatsApp, Telegram, Discord, and more.",
+  "author": "GangNiaga Sdn Bhd",
+  "license": "MIT",
+  "capabilities": ["tool", "automation", "memory"],
+  "entryPoints": {
+    "tool": "./tools/business-tools.js",
+    "automation": "./automation/scheduled-tasks.js",
+    "memory": "./memory/business-context.js"
+  },
+  "tools": [
+    {
+      "name": "generate_business_plan",
+      "description": "Generate a professional 21-section business proposal",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "proposalType": { "type": "string", "enum": ["bank_loan", "government_grant", "angel_investor", "venture_capital", "sme_financing", "corporate_partnership"] },
+          "industry": { "type": "string" },
+          "companyName": { "type": "string" },
+          "loanAmount": { "type": "number" }
+        },
+        "required": ["proposalType", "industry", "companyName"]
+      }
+    },
+    {
+      "name": "validate_idea",
+      "description": "Validate a business idea with AI scoring and benchmarking",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "problem": { "type": "string" },
+          "solution": { "type": "string" },
+          "targetMarket": { "type": "string" },
+          "revenueModel": { "type": "string" }
+        },
+        "required": ["problem", "solution", "targetMarket"]
+      }
+    },
+    {
+      "name": "review_plan",
+      "description": "Review a business plan from a lender perspective",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "planId": { "type": "string" },
+          "lenderPersona": { "type": "string", "enum": ["bank", "investor", "grant_officer"] }
+        },
+        "required": ["planId", "lenderPersona"]
+      }
+    },
+    {
+      "name": "generate_pitch_deck",
+      "description": "Generate a pitch deck from a business plan",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "planId": { "type": "string" },
+          "templateType": { "type": "string", "enum": ["investor", "bank", "grant"] }
+        },
+        "required": ["planId", "templateType"]
+      }
+    },
+    {
+      "name": "financial_forecast",
+      "description": "Generate financial forecasts with DSCR calculations",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "baseRevenue": { "type": "number" },
+          "growthRate": { "type": "number" },
+          "period": { "type": "string", "enum": ["quarterly", "yearly", "3year"] }
+        },
+        "required": ["baseRevenue", "period"]
+      }
+    },
+    {
+      "name": "research_market",
+      "description": "Research market data with citation verification",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "topic": { "type": "string" },
+          "geography": { "type": "string" },
+          "depth": { "type": "string", "enum": ["quick", "standard", "deep"] }
+        },
+        "required": ["topic"]
+      }
+    }
+  ],
+  "config": {
+    "organizationId": { "type": "string", "required": true },
+    "defaultCurrency": { "type": "string", "default": "MYR" },
+    "defaultGeography": { "type": "string", "default": "MY" }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "gateway": {
+    "bind": "127.0.0.1:18789",
+    "auth": {
+      "mode": "loopback_only"
+    },
+    "logging": {
+      "level": "info"
+    },
+    "sessions": {
+      "max": 50,
+      "timeout_minutes": 30
+    }
+  },
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "phone": "+6012345678"
+    },
+    "telegram": {
+      "enabled": true,
+      "botToken": "${TELEGRAM_BOT_TOKEN}"
+    },
+    "discord": {
+      "enabled": true,
+      "botToken": "${DISCORD_BOT_TOKEN}",
+      "guildId": "${DISCORD_GUILD_ID}"
+    },
+    "webchat": {
+      "enabled": true,
+      "corsOrigins": ["http://localhost:3000"]
+    },
+    "signal": {
+      "enabled": false,
+      "phoneNumber": "+6012345678"
+    },
+    "slack": {
+      "enabled": false,
+      "botToken": "${SLACK_BOT_TOKEN}"
+    }
+  },
+  "agents": {
+    "default": {
+      "model": "auto",
+      "soul": "./SOUL.md",
+      "agentsMd": "./AGENTS.md"
+    }
+  },
+  "plugins": {
+    "web-search": { "enabled": true },
+    "memory-wiki": { "enabled": true },
+    "webhooks": { "enabled": true },
+    "voice-call": { "enabled": false },
+    "pdf-tool": { "enabled": true },
+    "code-exec": { "enabled": true }
+  },
+  "automation": {
+    "scheduledTasks": [
+      {
+        "name": "Daily KPI Summary",
+        "cron": "0 9 * * *",
+        "prompt": "Generate today's KPI summary for the dashboard",
+        "channel": "telegram"
+      },
+      {
+        "name": "Weekly Investor Report",
+        "cron": "0 10 * * 1",
+        "prompt": "Compile weekly investor update with revenue and burn rate",
+        "channel": "whatsapp"
+      },
+      {
+        "name": "Competitor Price Check",
+        "cron": "0 */6 * * *",
+        "prompt": "Check competitor pricing changes and update market intelligence",
+        "channel": "telegram"
+      },
+      {
+        "name": "Monthly Financial Review",
+        "cron": "0 9 1 * *",
+        "prompt": "Generate monthly financial review with variance analysis",
+        "channel": "whatsapp"
+      }
+    ]
+  }
+}

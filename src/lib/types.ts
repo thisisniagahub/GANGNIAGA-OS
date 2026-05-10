@@ -12,7 +12,8 @@ export type ModuleId =
   | 'plan-review'
   | 'plan-actuals'
   | 'pitch-deck'
-  | 'research';
+  | 'research'
+  | 'openclaw';
 
 export type ProposalType = 
   | 'bank_loan' 
@@ -332,4 +333,131 @@ export interface CitationData {
   dataPoint: string | null;
   verified: boolean;
   createdAt: string;
+}
+
+// ── OpenClaw Integration ──
+
+export type OpenClawChannelType = 
+  | 'whatsapp' | 'telegram' | 'discord' | 'slack' | 'signal' 
+  | 'imessage' | 'webchat' | 'matrix' | 'msteams' | 'googlechat'
+  | 'line' | 'wechat' | 'zalo' | 'irc' | 'feishu' | 'nostr'
+  | 'mattermost' | 'twitch' | 'qqbot' | 'nextcloud-talk';
+
+export type OpenClawChannelStatus = 'connected' | 'disconnected' | 'connecting' | 'error' | 'pending_approval';
+
+export interface OpenClawChannel {
+  id: string;
+  type: OpenClawChannelType;
+  name: string;
+  status: OpenClawChannelStatus;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
+  messageCount: number;
+  config: Record<string, string>; // e.g., { botToken: '***', phoneNumber: '+60...' }
+  pairedAt: string | null;
+  avatarUrl: string | null;
+}
+
+export type GatewayStatus = 'running' | 'stopped' | 'starting' | 'error' | 'unconfigured';
+
+export interface OpenClawGateway {
+  id: string;
+  status: GatewayStatus;
+  bindHost: string;
+  bindPort: number;
+  uptime: number; // seconds
+  connectedClients: number;
+  activeChannels: number;
+  totalMessages: number;
+  lastHealthCheck: string | null;
+  version: string | null;
+  config: {
+    authMode: 'shared_secret' | 'trusted_proxy' | 'loopback_only';
+    logLevel: 'debug' | 'info' | 'warn' | 'error';
+    maxSessions: number;
+    sessionTimeout: number; // minutes
+  };
+}
+
+export type PluginCapability = 'text_inference' | 'cli_backend' | 'speech' | 'channel' | 'tool' | 'memory' | 'automation';
+
+export interface OpenClawPlugin {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  capabilities: PluginCapability[];
+  status: 'installed' | 'enabled' | 'disabled' | 'error' | 'available';
+  source: 'bundled' | 'clawhub' | 'local';
+  installedAt: string | null;
+  lastUpdated: string | null;
+  config: Record<string, unknown>;
+}
+
+export type DelegateTier = 'tier1_readonly' | 'tier2_send_behalf' | 'tier3_proactive';
+
+export interface OpenClawDelegate {
+  id: string;
+  name: string;
+  email: string;
+  displayName: string;
+  tier: DelegateTier;
+  status: 'active' | 'inactive' | 'suspended' | 'setup';
+  channels: OpenClawChannelType[];
+  principalName: string;
+  principalEmail: string;
+  standingOrders: string[];
+  tasksCompleted: number;
+  lastActivity: string | null;
+  createdAt: string;
+}
+
+export interface OpenClawWebhook {
+  id: string;
+  name: string;
+  url: string;
+  method: 'POST' | 'GET' | 'PUT';
+  events: string[]; // e.g., ['agent.complete', 'message.received', 'workflow.done']
+  status: 'active' | 'inactive' | 'error';
+  lastTriggered: string | null;
+  triggerCount: number;
+  secret: string | null;
+  headers: Record<string, string>;
+  createdAt: string;
+}
+
+export interface OpenClawScheduledTask {
+  id: string;
+  name: string;
+  cronExpression: string;
+  status: 'active' | 'paused' | 'error' | 'completed';
+  agentId: string | null;
+  prompt: string;
+  channel: OpenClawChannelType | null;
+  lastRun: string | null;
+  nextRun: string | null;
+  runCount: number;
+  createdAt: string;
+}
+
+export interface OpenClawSession {
+  id: string;
+  channelId: string;
+  channelType: OpenClawChannelType;
+  contactName: string;
+  contactId: string;
+  messageCount: number;
+  lastMessageAt: string;
+  status: 'active' | 'compacted' | 'archived';
+  createdAt: string;
+}
+
+export interface OpenClawSoulConfig {
+  personality: string;
+  tone: string;
+  language: string;
+  specialty: string;
+  greeting: string;
+  rules: string[];
 }

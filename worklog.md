@@ -439,3 +439,267 @@ Stage Summary:
 - Dynamic badge counts from the Zustand store give users at-a-glance awareness of key metrics
 - All existing functionality preserved — no regressions
 - Lint passes clean, dev server compiling and serving 200s
+
+---
+Task ID: 4
+Agent: Subagent (full-stack-developer)
+Task: Update types.ts, prisma schema, and store.ts with OpenClaw integration models
+
+Work Log:
+
+**Part 1: types.ts (`src/lib/types.ts`)**
+
+- Added `'openclaw'` to the `ModuleId` type union
+- Added 10 new OpenClaw type definitions:
+  - `OpenClawChannelType` — 20 channel types (whatsapp, telegram, discord, slack, signal, imessage, webchat, matrix, msteams, googlechat, line, wechat, zalo, irc, feishu, nostr, mattermost, twitch, qqbot, nextcloud-talk)
+  - `OpenClawChannelStatus` — 5 statuses (connected, disconnected, connecting, error, pending_approval)
+  - `OpenClawChannel` — Channel interface with type, status, config, messageCount, etc.
+  - `GatewayStatus` — 5 statuses (running, stopped, starting, error, unconfigured)
+  - `OpenClawGateway` — Gateway interface with bindHost, bindPort, uptime, config (authMode, logLevel, maxSessions, sessionTimeout)
+  - `PluginCapability` — 7 capabilities (text_inference, cli_backend, speech, channel, tool, memory, automation)
+  - `OpenClawPlugin` — Plugin interface with capabilities, status, source (bundled/clawhub/local)
+  - `DelegateTier` — 3 tiers (tier1_readonly, tier2_send_behalf, tier3_proactive)
+  - `OpenClawDelegate` — Delegate interface with tier, channels, principalName, standingOrders
+  - `OpenClawWebhook` — Webhook interface with method, events, headers, secret
+  - `OpenClawScheduledTask` — Scheduled task with cronExpression, agentId, prompt, channel
+  - `OpenClawSession` — Session with channelId, channelType, contactName, status
+  - `OpenClawSoulConfig` — SOUL.md personality config with personality, tone, language, specialty, greeting, rules
+
+**Part 2: prisma/schema.prisma**
+
+- Added 6 new Prisma models:
+  - `OpenClawChannel` — with type, status, messageCount, config (JSON), pairedAt
+  - `OpenClawGateway` — with bindHost, bindPort, uptime, connectedClients, activeChannels, totalMessages, config (JSON)
+  - `OpenClawPlugin` — with name, version, capabilities (JSON), status, source, installedAt
+  - `OpenClawDelegate` — with email, tier, channels (JSON), principalName, standingOrders (JSON)
+  - `OpenClawWebhook` — with url, method, events (JSON), triggerCount, headers (JSON)
+  - `OpenClawScheduledTask` — with cronExpression, agentId, prompt, lastRun, nextRun, runCount
+- Added 6 new relations to the Organization model:
+  - `openclawChannels`, `openclawGateways`, `openclawPlugins`, `openclawDelegates`, `openclawWebhooks`, `openclawScheduledTasks`
+- Ran `bun run db:push` successfully — schema in sync
+
+**Part 3: store.ts (`src/lib/store.ts`)**
+
+- Updated imports to include all 7 new OpenClaw types
+- Added 8 new state properties to AppState interface:
+  - `openclawGateway`, `openclawChannels`, `openclawPlugins`, `openclawDelegates`, `openclawWebhooks`, `openclawScheduledTasks`, `openclawSessions`, `openclawSoul`
+- Added 15 new CRUD action methods:
+  - `updateOpenClawGateway`, `addOpenClawChannel`, `updateOpenClawChannel`, `removeOpenClawChannel`
+  - `updateOpenClawPlugin`, `addOpenClawDelegate`, `updateOpenClawDelegate`
+  - `addOpenClawWebhook`, `updateOpenClawWebhook`, `removeOpenClawWebhook`
+  - `addOpenClawScheduledTask`, `updateOpenClawScheduledTask`, `removeOpenClawScheduledTask`
+  - `updateOpenClawSoul`
+- Implemented comprehensive mock data:
+  - Gateway: running on 127.0.0.1:18789, 10 days uptime, 4 active channels, 12,847 total messages
+  - 6 channels: WhatsApp (connected, 5,230 msgs), Telegram (connected, 3,120 msgs), Discord (connected, 2,890 msgs), Slack (disconnected), WebChat (connected, 1,607 msgs), Signal (pending_approval)
+  - 8 plugins: Web Search, Memory Wiki, Webhooks, Voice Call, Image Generation, PDF Tool, Code Execution, Skill Workshop
+  - 2 delegates: Finance Bot (tier2_send_behalf), Support Agent (tier1_readonly)
+  - 3 webhooks: Slack Notification (agent.complete), CRM Sync (message.received), Analytics Tracker (workflow.done)
+  - 4 scheduled tasks: Daily KPI Summary (0 9 * * *), Weekly Investor Report (0 10 * * 1), Competitor Price Check (0 */6 * * *), Monthly Financial Review (0 9 1 * *)
+  - 5 sessions: Ahmad Razak (WhatsApp), Lim Wei Ming (Telegram), Investor_Dave (Discord), Website Visitor (WebChat), Siti Nurhaliza (WhatsApp, compacted)
+  - SOUL config: Professional ASEAN SME business assistant with 5 rules
+- All CRUD methods implemented with proper immutable state updates
+- Lint passes clean with no errors
+
+Stage Summary:
+- types.ts now has 10 new OpenClaw types and 'openclaw' ModuleId
+- Prisma schema has 6 new OpenClaw models with Organization relations, db:push successful
+- Store has comprehensive mock data for all OpenClaw entities with 15 CRUD actions
+- All files compile cleanly, no lint errors
+
+---
+Task ID: 5
+Agent: Subagent (full-stack-developer)
+Task: Build the OpenClaw Integration UI Module
+
+Work Log:
+
+- Created `src/components/modules/openclaw.tsx` — a comprehensive, professional OpenClaw integration module for GangNiaga AI OS
+- Module uses `'use client'` directive and integrates with the Zustand store via `useAppStore()`
+- Built 7 tabs using shadcn/ui Tabs component:
+
+**Tab 1: Gateway**
+- Gateway status card with pulsing dot indicator (running=emerald, stopped=gray, error=red, starting=amber)
+- Stats grid: bind address, uptime (formatted X days Y hours Z minutes), connected clients, active channels, total messages, version, last health check
+- Start/Stop/Restart gateway buttons with proper state transitions
+- Health check button with loading spinner simulation
+- Gateway configuration section (authMode, logLevel, maxSessions, sessionTimeout) with inline editing and save/cancel
+
+**Tab 2: Channels**
+- Grid of channel cards with platform-specific icons and colors (20 channel types configured)
+- Each card shows: platform icon (color-coded), name, status badge (connected=green, disconnected=red, connecting=amber, error=red, pending_approval=amber), last message preview, message count, paired date
+- Add Channel dialog with platform type selector and name input
+- Click channel card to open detail dialog with config fields and remove button
+- Empty state when no channels
+
+**Tab 3: Plugins**
+- List of installed/available plugins with: name, version, author, description, capabilities badges (7 capabilities color-coded), status badge, source badge (bundled/clawhub/local)
+- Install/Enable/Disable/Uninstall buttons per plugin depending on status
+- Browse ClawHub button (placeholder)
+- Empty state when no plugins
+
+**Tab 4: Delegates**
+- List of delegate agents showing: name, email, display name, tier badge (Tier 1=gray, Tier 2=amber, Tier 3=emerald), status, channels (with channel type badges), principal name, tasks completed
+- Standing orders list for each delegate with amber chevron indicators
+- Add Delegate dialog with name, email, display name, tier selector
+- Empty state when no delegates
+
+**Tab 5: Webhooks**
+- List of webhook integrations showing: name, URL (monospace), method badge, events list (amber badges), status, trigger count, last triggered
+- Add Webhook dialog with URL, method selector, events multi-select (8 event types), secret
+- Test webhook button with simulated response
+- Delete webhook with AlertDialog confirmation
+- Empty state when no webhooks
+
+**Tab 6: Automation**
+- List of scheduled tasks showing: name, cron expression (monospace), human-readable description, status badge, channel, last/next run, run count
+- Add Task dialog with name, cron expression (with live human-readable preview), prompt, channel selector
+- Pause/Resume toggle button per task
+- Delete task button
+- Human-readable cron descriptions (e.g., "Every day at 9:00 AM")
+- Empty state when no tasks
+
+**Tab 7: SOUL.md**
+- Agent personality configuration editor with fields: personality, tone, language, specialty, greeting
+- Rules list with add/remove (hover to show remove button, Enter key to add)
+- Live preview panel showing formatted SOUL.md with syntax highlighting (headers in emerald/amber)
+- Save/Reset buttons
+
+- All CRUD operations persist to Zustand store using the existing action methods
+- Toast notifications (sonner) for all user actions
+- Framer Motion animations for card entry/exit and tab transitions
+- Dark mode compatible with emerald/teal/amber accent theme
+- Responsive design with proper grid breakpoints
+- Proper spacing, typography, and visual hierarchy
+- Registered OpenClawModule in `src/app/page.tsx` moduleComponents map
+- Fixed duplicate import in page.tsx
+- Lint passes clean with no errors
+- Dev server compiling and serving 200s
+
+Stage Summary:
+- OpenClaw integration module is complete with all 7 tabs fully functional
+- All mock data from Zustand store renders correctly
+- All interactive elements work (add dialogs, toggle states, delete confirmations, health check, config editing)
+- Professional UI with consistent emerald/teal/amber color scheme
+- No lint errors, no regressions
+
+---
+Task ID: 8
+Agent: OpenClaw Config Agent
+Task: Create OpenClaw Configuration Files
+
+Work Log:
+
+- Created 5 OpenClaw configuration files in `/home/z/my-project/openclaw/`:
+
+1. **SOUL.md** (46 lines) — GangNiaga AI personality configuration:
+   - Personality: Professional ASEAN SME business assistant
+   - Tone: Formal yet friendly, data-driven, culturally aware, proactive, honest
+   - Language: English (primary), Bahasa Melayu (secondary), respond in user's language
+   - Specialty: Business plan generation, financial forecasting, market research, plan review, idea validation, pitch deck generation, plan vs actuals tracking
+   - Greeting: Multichannel business assistant introduction
+   - Rules: 15 behavioral rules covering language, citations, confidentiality, DSCR requirements, Malaysian business context, ASEAN data standards
+
+2. **AGENTS.md** (64 lines) — Multi-agent routing configuration:
+   - Default Agent: GangNiaga General (auto model, failover chain)
+   - 5 Specialist Lanes: Business Analyst, Financial Advisor, Research Agent, Plan Review Agent, Support Delegate
+   - Each lane has trigger conditions, tools, and standing orders
+   - 2 Delegates: Finance Bot (Tier 2, Send on Behalf), Support Agent (Tier 1, Read Only)
+
+3. **openclaw.json** (85 lines) — Gateway configuration:
+   - Gateway: bind 127.0.0.1:18789, loopback_only auth, info logging, 50 max sessions, 30min timeout
+   - 6 channels: WhatsApp, Telegram, Discord (enabled), WebChat (enabled), Signal, Slack (disabled)
+   - Agent config: auto model, references SOUL.md and AGENTS.md
+   - 6 plugins: web-search, memory-wiki, webhooks, voice-call (disabled), pdf-tool, code-exec
+   - 4 automation tasks: Daily KPI Summary, Weekly Investor Report, Competitor Price Check, Monthly Financial Review
+
+4. **plugin-manifest.json** (98 lines) — ClawHub plugin manifest:
+   - Name: gangniaga-business-os v1.0.0
+   - Capabilities: tool, automation, memory
+   - 3 entry points: tool, automation, memory
+   - 6 tools: generate_business_plan, validate_idea, review_plan, generate_pitch_deck, financial_forecast, research_market
+   - Config schema: organizationId (required), defaultCurrency (MYR), defaultGeography (MY)
+
+5. **README.md** (218 lines) — Integration documentation:
+   - What is OpenClaw and how it integrates with GangNiaga AI OS
+   - Key features: Multi-channel gateway, Plugin system, Delegates, Webhooks, Automation, SOUL.md personality
+   - Architecture diagram: GangNiaga Next.js app → REST API → OpenClaw Gateway → Channels
+   - Setup instructions for WhatsApp, Telegram, Discord, WebChat, Slack
+   - File structure reference table
+   - Environment variables reference
+
+- Verified directory structure: all 5 files created successfully in `/home/z/my-project/openclaw/`
+
+Stage Summary:
+- All 5 OpenClaw configuration files created with comprehensive content
+- SOUL.md defines GangNiaga AI personality with 15 behavioral rules
+- AGENTS.md configures 5 specialist lanes and 2 delegates
+- openclaw.json provides complete gateway, channel, plugin, and automation config
+- plugin-manifest.json registers 6 tools as a ClawHub plugin
+- README.md documents architecture, setup, and file structure
+
+---
+Task ID: 7
+Agent: Subagent (full-stack-developer)
+Task: Create API Routes for OpenClaw Integration
+
+Work Log:
+
+- Created 8 API route files for OpenClaw integration, all using `import { db } from '@/lib/db'` for Prisma database access and `import { NextRequest, NextResponse } from 'next/server'` for Next.js route handlers.
+
+1. **`/api/openclaw/channels/route.ts`** — Channel list & create
+   - GET: Lists all OpenClawChannel records for org `'org1'`, parses JSON config field
+   - POST: Creates a new channel with type, name, status, config, avatarUrl; returns 201
+
+2. **`/api/openclaw/channels/[id]/route.ts`** — Channel CRUD by ID
+   - GET: Fetches single channel by ID, returns 404 if not found
+   - PATCH: Updates channel fields (type, name, status, lastMessage, messageCount, config, pairedAt, avatarUrl), parses JSON config
+   - DELETE: Removes channel by ID, returns 404 if not found
+
+3. **`/api/openclaw/gateway/route.ts`** — Gateway status & actions
+   - GET: Returns all gateway records for org, parses JSON config
+   - PATCH: Updates gateway fields (status, bindHost, bindPort, uptime, connectedClients, activeChannels, totalMessages, version, config, lastHealthCheck)
+   - POST: Accepts `{ action: 'start' | 'stop' | 'restart' }` — simulates gateway state transitions with validation (e.g., can't start if already running, can't stop if already stopped); resets counters on state changes
+
+4. **`/api/openclaw/plugins/route.ts`** — Plugin management
+   - GET: Lists all plugins, parses JSON capabilities and config fields
+   - PATCH: Updates plugin by ID (name, version, description, author, source, status, capabilities, config); auto-sets installedAt when status changes to installed/enabled; updates lastUpdated timestamp
+
+5. **`/api/openclaw/delegates/route.ts`** — Delegate CRUD
+   - GET: Lists all delegates, parses JSON channels and standingOrders fields
+   - POST: Creates new delegate with name, email, displayName, tier, channels, principalName, principalEmail, standingOrders; returns 201
+   - PATCH: Updates delegate by ID with all fields including JSON channels/standingOrders
+
+6. **`/api/openclaw/webhooks/route.ts`** — Webhook CRUD
+   - GET: Lists all webhooks, parses JSON events and headers
+   - POST: Creates new webhook with name, url, method, events, secret, headers; returns 201
+   - PATCH: Updates webhook by ID including JSON events/headers
+   - DELETE: Deletes webhook by ID (via `?id=xxx` query param), returns 404 if not found
+
+7. **`/api/openclaw/automation/route.ts`** — Scheduled task CRUD
+   - GET: Lists all scheduled tasks for org
+   - POST: Creates new task with name, cronExpression, agentId, prompt, channel, status, nextRun; returns 201
+   - PATCH: Updates task by ID including status, runCount, lastRun, nextRun
+   - DELETE: Deletes task by ID (via `?id=xxx` query param), returns 404 if not found
+
+8. **`/api/openclaw/soul/route.ts`** — SOUL.md personality config
+   - GET: Reads SOUL config from `openclaw-soul.json` file; returns default config if file doesn't exist
+   - PUT: Validates and writes SOUL config (personality, tone, language, specialty, greeting, rules array) to `openclaw-soul.json`
+
+Implementation details:
+- All routes use hardcoded `organizationId = 'org1'` (no auth)
+- All routes include proper try/catch error handling
+- JSON fields (config, capabilities, channels, standingOrders, events, headers) are stringified on write and parsed on read
+- Proper HTTP status codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Internal Server Error)
+- Gateway POST action returns simulated responses (no actual OpenClaw process)
+- SOUL config uses filesystem (readFile/writeFile) since it's a file-based config
+- Default SOUL config provided when no file exists
+
+- `bun run lint` passes clean with no errors
+- Dev server running and serving 200s
+
+Stage Summary:
+- All 8 API routes created with full CRUD operations for OpenClaw integration
+- Routes cover: channels, gateway, plugins, delegates, webhooks, automation, and SOUL.md config
+- Proper error handling, status codes, and JSON field parsing throughout
+- Lint passes clean, no regressions

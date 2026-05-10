@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ModuleId, ChatMessage, KPIData, ChartDataPoint, AgentInfo, TaskInfo, WorkflowInfo, MemoryEntry, BusinessPlanData, ReportData, IdeaCanvasData, PlanReviewData, PlanActualData, IntegrationData, VarianceAlert, PitchDeckData, CitationData } from './types';
+import type { ModuleId, ChatMessage, KPIData, ChartDataPoint, AgentInfo, TaskInfo, WorkflowInfo, MemoryEntry, BusinessPlanData, ReportData, IdeaCanvasData, PlanReviewData, PlanActualData, IntegrationData, VarianceAlert, PitchDeckData, CitationData, OpenClawChannel, OpenClawGateway, OpenClawPlugin, OpenClawDelegate, OpenClawWebhook, OpenClawScheduledTask, OpenClawSession, OpenClawSoulConfig } from './types';
 
 interface AppState {
   activeModule: ModuleId;
@@ -99,6 +99,32 @@ interface AppState {
 
   // ── Connected Financial Model ──
   updateFinancialAssumption: (key: string, value: number) => void;
+
+  // ── OpenClaw Integration ──
+  openclawGateway: OpenClawGateway;
+  openclawChannels: OpenClawChannel[];
+  openclawPlugins: OpenClawPlugin[];
+  openclawDelegates: OpenClawDelegate[];
+  openclawWebhooks: OpenClawWebhook[];
+  openclawScheduledTasks: OpenClawScheduledTask[];
+  openclawSessions: OpenClawSession[];
+  openclawSoul: OpenClawSoulConfig;
+
+  // OpenClaw CRUD
+  updateOpenClawGateway: (updates: Partial<OpenClawGateway>) => void;
+  addOpenClawChannel: (channel: OpenClawChannel) => void;
+  updateOpenClawChannel: (id: string, updates: Partial<OpenClawChannel>) => void;
+  removeOpenClawChannel: (id: string) => void;
+  updateOpenClawPlugin: (id: string, updates: Partial<OpenClawPlugin>) => void;
+  addOpenClawDelegate: (delegate: OpenClawDelegate) => void;
+  updateOpenClawDelegate: (id: string, updates: Partial<OpenClawDelegate>) => void;
+  addOpenClawWebhook: (webhook: OpenClawWebhook) => void;
+  updateOpenClawWebhook: (id: string, updates: Partial<OpenClawWebhook>) => void;
+  removeOpenClawWebhook: (id: string) => void;
+  addOpenClawScheduledTask: (task: OpenClawScheduledTask) => void;
+  updateOpenClawScheduledTask: (id: string, updates: Partial<OpenClawScheduledTask>) => void;
+  removeOpenClawScheduledTask: (id: string) => void;
+  updateOpenClawSoul: (updates: Partial<OpenClawSoulConfig>) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -556,4 +582,474 @@ export const useAppStore = create<AppState>((set) => ({
     });
     return { kpis: updatedKpis };
   }),
+
+  // ── OpenClaw Integration ──
+  openclawGateway: {
+    id: 'gw1',
+    status: 'running',
+    bindHost: '127.0.0.1',
+    bindPort: 18789,
+    uptime: 864000, // 10 days
+    connectedClients: 3,
+    activeChannels: 4,
+    totalMessages: 12847,
+    lastHealthCheck: new Date().toISOString(),
+    version: '1.32.4',
+    config: {
+      authMode: 'loopback_only',
+      logLevel: 'info',
+      maxSessions: 50,
+      sessionTimeout: 30,
+    },
+  },
+
+  openclawChannels: [
+    {
+      id: 'ch1',
+      type: 'whatsapp',
+      name: 'WhatsApp Business (+6012345678)',
+      status: 'connected',
+      lastMessage: 'Terima kasih atas maklumat tersebut',
+      lastMessageAt: new Date(Date.now() - 300000).toISOString(),
+      messageCount: 5230,
+      config: { phoneNumber: '+6012345678', businessName: 'GangNiaga AI' },
+      pairedAt: '2024-11-15T08:00:00Z',
+      avatarUrl: null,
+    },
+    {
+      id: 'ch2',
+      type: 'telegram',
+      name: 'Telegram (@GangNiagaBot)',
+      status: 'connected',
+      lastMessage: 'Show me the Q4 financial summary',
+      lastMessageAt: new Date(Date.now() - 900000).toISOString(),
+      messageCount: 3120,
+      config: { botToken: '***', username: '@GangNiagaBot' },
+      pairedAt: '2024-10-20T10:30:00Z',
+      avatarUrl: null,
+    },
+    {
+      id: 'ch3',
+      type: 'discord',
+      name: 'Discord (GangNiaga Server)',
+      status: 'connected',
+      lastMessage: 'New investor inquiry from #funding channel',
+      lastMessageAt: new Date(Date.now() - 1800000).toISOString(),
+      messageCount: 2890,
+      config: { serverId: 'gn-2024', channelName: 'business-ops' },
+      pairedAt: '2024-09-05T14:00:00Z',
+      avatarUrl: null,
+    },
+    {
+      id: 'ch4',
+      type: 'slack',
+      name: 'Slack (Workspace)',
+      status: 'disconnected',
+      lastMessage: 'Integration disconnected — re-auth required',
+      lastMessageAt: new Date(Date.now() - 86400000).toISOString(),
+      messageCount: 0,
+      config: { workspace: 'gangniaga.slack.com' },
+      pairedAt: null,
+      avatarUrl: null,
+    },
+    {
+      id: 'ch5',
+      type: 'webchat',
+      name: 'WebChat (Website Widget)',
+      status: 'connected',
+      lastMessage: 'Hi, I need help with business plan pricing',
+      lastMessageAt: new Date(Date.now() - 600000).toISOString(),
+      messageCount: 1607,
+      config: { widgetId: 'wc-gn-001', domain: 'gangniaga.ai' },
+      pairedAt: '2024-12-01T09:00:00Z',
+      avatarUrl: null,
+    },
+    {
+      id: 'ch6',
+      type: 'signal',
+      name: 'Signal (+6012345678)',
+      status: 'pending_approval',
+      lastMessage: null,
+      lastMessageAt: null,
+      messageCount: 0,
+      config: { phoneNumber: '+6012345678' },
+      pairedAt: null,
+      avatarUrl: null,
+    },
+  ],
+
+  openclawPlugins: [
+    {
+      id: 'pl1',
+      name: 'Web Search',
+      version: '2.4.1',
+      description: 'Real-time web search and content extraction for AI agents',
+      author: 'OpenClaw Team',
+      capabilities: ['tool', 'automation'],
+      status: 'enabled',
+      source: 'bundled',
+      installedAt: '2024-10-01T00:00:00Z',
+      lastUpdated: '2025-01-10T00:00:00Z',
+      config: { maxResults: 10, timeout: 30000 },
+    },
+    {
+      id: 'pl2',
+      name: 'Memory Wiki',
+      version: '1.8.0',
+      description: 'Persistent knowledge base with semantic search and auto-indexing',
+      author: 'OpenClaw Team',
+      capabilities: ['memory', 'tool'],
+      status: 'enabled',
+      source: 'bundled',
+      installedAt: '2024-10-01T00:00:00Z',
+      lastUpdated: '2025-01-05T00:00:00Z',
+      config: { maxEntries: 10000, indexInterval: 300 },
+    },
+    {
+      id: 'pl3',
+      name: 'Webhooks',
+      version: '1.3.2',
+      description: 'Outgoing webhook integration for workflow automation',
+      author: 'OpenClaw Team',
+      capabilities: ['automation', 'tool'],
+      status: 'enabled',
+      source: 'bundled',
+      installedAt: '2024-10-01T00:00:00Z',
+      lastUpdated: '2024-12-20T00:00:00Z',
+      config: { maxRetries: 3, timeout: 10000 },
+    },
+    {
+      id: 'pl4',
+      name: 'Voice Call',
+      version: '0.9.4',
+      description: 'Voice calling and speech-to-text for AI phone interactions',
+      author: 'ClawHub Community',
+      capabilities: ['speech', 'channel'],
+      status: 'installed',
+      source: 'clawhub',
+      installedAt: '2024-12-15T00:00:00Z',
+      lastUpdated: '2024-12-15T00:00:00Z',
+      config: { provider: 'twilio', language: 'en-US' },
+    },
+    {
+      id: 'pl5',
+      name: 'Image Generation',
+      version: '1.1.0',
+      description: 'AI image generation for pitch decks and marketing materials',
+      author: 'ClawHub Community',
+      capabilities: ['tool', 'automation'],
+      status: 'installed',
+      source: 'clawhub',
+      installedAt: '2025-01-02T00:00:00Z',
+      lastUpdated: '2025-01-02T00:00:00Z',
+      config: { model: 'dall-e-3', size: '1024x1024' },
+    },
+    {
+      id: 'pl6',
+      name: 'PDF Tool',
+      version: '2.0.3',
+      description: 'PDF generation, parsing, and manipulation for business documents',
+      author: 'OpenClaw Team',
+      capabilities: ['tool', 'automation'],
+      status: 'enabled',
+      source: 'bundled',
+      installedAt: '2024-10-01T00:00:00Z',
+      lastUpdated: '2025-01-08T00:00:00Z',
+      config: { template: 'business-pro' },
+    },
+    {
+      id: 'pl7',
+      name: 'Code Execution',
+      version: '1.5.1',
+      description: 'Sandboxed code execution for data analysis and automation scripts',
+      author: 'OpenClaw Team',
+      capabilities: ['cli_backend', 'tool'],
+      status: 'enabled',
+      source: 'bundled',
+      installedAt: '2024-10-01T00:00:00Z',
+      lastUpdated: '2024-12-28T00:00:00Z',
+      config: { runtime: 'nodejs', timeout: 60000, maxMemory: 512 },
+    },
+    {
+      id: 'pl8',
+      name: 'Skill Workshop',
+      version: '0.7.0',
+      description: 'Create and manage custom AI skills and prompt chains',
+      author: 'ClawHub Community',
+      capabilities: ['automation', 'tool'],
+      status: 'available',
+      source: 'clawhub',
+      installedAt: null,
+      lastUpdated: null,
+      config: {},
+    },
+  ],
+
+  openclawDelegates: [
+    {
+      id: 'dl1',
+      name: 'Finance Bot',
+      email: 'finance-bot@gangniaga.ai',
+      displayName: 'GangNiaga Finance Assistant',
+      tier: 'tier2_send_behalf',
+      status: 'active',
+      channels: ['whatsapp', 'telegram', 'slack'],
+      principalName: 'Sarah Chen',
+      principalEmail: 'sarah.chen@gangniaga.ai',
+      standingOrders: [
+        'Send weekly financial summary every Monday 9 AM',
+        'Alert on DSCR below 1.25x',
+        'Auto-respond to invoice status queries',
+      ],
+      tasksCompleted: 234,
+      lastActivity: new Date(Date.now() - 3600000).toISOString(),
+      createdAt: '2024-10-15T00:00:00Z',
+    },
+    {
+      id: 'dl2',
+      name: 'Support Agent',
+      email: 'support-bot@gangniaga.ai',
+      displayName: 'GangNiaga Customer Support',
+      tier: 'tier1_readonly',
+      status: 'active',
+      channels: ['whatsapp', 'webchat', 'telegram'],
+      principalName: 'CS Team Lead',
+      principalEmail: 'cs-lead@gangniaga.ai',
+      standingOrders: [
+        'Triage incoming support queries',
+        'Escalate billing issues to human agents',
+        'Provide product FAQ responses',
+      ],
+      tasksCompleted: 1892,
+      lastActivity: new Date(Date.now() - 600000).toISOString(),
+      createdAt: '2024-11-01T00:00:00Z',
+    },
+  ],
+
+  openclawWebhooks: [
+    {
+      id: 'wh1',
+      name: 'Slack Notification',
+      url: 'https://hooks.slack.com/services/T0/B0/xxx',
+      method: 'POST',
+      events: ['agent.complete'],
+      status: 'active',
+      lastTriggered: new Date(Date.now() - 7200000).toISOString(),
+      triggerCount: 347,
+      secret: 'whsec_***',
+      headers: { 'Content-Type': 'application/json' },
+      createdAt: '2024-10-20T00:00:00Z',
+    },
+    {
+      id: 'wh2',
+      name: 'CRM Sync',
+      url: 'https://api.hubspot.com/webhooks/v1/xxx',
+      method: 'POST',
+      events: ['message.received'],
+      status: 'active',
+      lastTriggered: new Date(Date.now() - 1800000).toISOString(),
+      triggerCount: 1205,
+      secret: 'whsec_***',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ***' },
+      createdAt: '2024-11-05T00:00:00Z',
+    },
+    {
+      id: 'wh3',
+      name: 'Analytics Tracker',
+      url: 'https://analytics.gangniaga.ai/collect',
+      method: 'POST',
+      events: ['workflow.done'],
+      status: 'active',
+      lastTriggered: new Date(Date.now() - 43200000).toISOString(),
+      triggerCount: 892,
+      secret: null,
+      headers: { 'Content-Type': 'application/json' },
+      createdAt: '2024-11-10T00:00:00Z',
+    },
+  ],
+
+  openclawScheduledTasks: [
+    {
+      id: 'st1',
+      name: 'Daily KPI Summary',
+      cronExpression: '0 9 * * *',
+      status: 'active',
+      agentId: '1',
+      prompt: 'Generate and distribute daily KPI summary to management team',
+      channel: 'slack',
+      lastRun: new Date(Date.now() - 86400000).toISOString(),
+      nextRun: new Date(Date.now() + 43200000).toISOString(),
+      runCount: 89,
+      createdAt: '2024-10-01T00:00:00Z',
+    },
+    {
+      id: 'st2',
+      name: 'Weekly Investor Report',
+      cronExpression: '0 10 * * 1',
+      status: 'active',
+      agentId: '2',
+      prompt: 'Compile weekly investor update with financial highlights and milestones',
+      channel: 'email',
+      lastRun: new Date(Date.now() - 604800000).toISOString(),
+      nextRun: new Date(Date.now() + 172800000).toISOString(),
+      runCount: 12,
+      createdAt: '2024-11-01T00:00:00Z',
+    },
+    {
+      id: 'st3',
+      name: 'Competitor Price Check',
+      cronExpression: '0 */6 * * *',
+      status: 'active',
+      agentId: '3',
+      prompt: 'Check competitor pricing pages and report any changes',
+      channel: null,
+      lastRun: new Date(Date.now() - 21600000).toISOString(),
+      nextRun: new Date(Date.now() + 3600000).toISOString(),
+      runCount: 245,
+      createdAt: '2024-09-15T00:00:00Z',
+    },
+    {
+      id: 'st4',
+      name: 'Monthly Financial Review',
+      cronExpression: '0 9 1 * *',
+      status: 'active',
+      agentId: '2',
+      prompt: 'Run comprehensive monthly financial review including DSCR calculation and variance analysis',
+      channel: 'whatsapp',
+      lastRun: new Date(Date.now() - 2592000000).toISOString(),
+      nextRun: new Date(Date.now() + 518400000).toISOString(),
+      runCount: 4,
+      createdAt: '2024-10-01T00:00:00Z',
+    },
+  ],
+
+  openclawSessions: [
+    {
+      id: 'ses1',
+      channelId: 'ch1',
+      channelType: 'whatsapp',
+      contactName: 'Ahmad Razak',
+      contactId: '+60111222333',
+      messageCount: 24,
+      lastMessageAt: new Date(Date.now() - 300000).toISOString(),
+      status: 'active',
+      createdAt: '2025-01-10T08:00:00Z',
+    },
+    {
+      id: 'ses2',
+      channelId: 'ch2',
+      channelType: 'telegram',
+      contactName: 'Lim Wei Ming',
+      contactId: 'tg_lwm_001',
+      messageCount: 18,
+      lastMessageAt: new Date(Date.now() - 900000).toISOString(),
+      status: 'active',
+      createdAt: '2025-01-09T14:30:00Z',
+    },
+    {
+      id: 'ses3',
+      channelId: 'ch3',
+      channelType: 'discord',
+      contactName: 'Investor_Dave',
+      contactId: 'discord_id_456',
+      messageCount: 12,
+      lastMessageAt: new Date(Date.now() - 1800000).toISOString(),
+      status: 'active',
+      createdAt: '2025-01-08T16:00:00Z',
+    },
+    {
+      id: 'ses4',
+      channelId: 'ch5',
+      channelType: 'webchat',
+      contactName: 'Website Visitor #4521',
+      contactId: 'wc_4521',
+      messageCount: 6,
+      lastMessageAt: new Date(Date.now() - 600000).toISOString(),
+      status: 'active',
+      createdAt: '2025-01-12T11:20:00Z',
+    },
+    {
+      id: 'ses5',
+      channelId: 'ch1',
+      channelType: 'whatsapp',
+      contactName: 'Siti Nurhaliza',
+      contactId: '+60199888777',
+      messageCount: 42,
+      lastMessageAt: new Date(Date.now() - 3600000).toISOString(),
+      status: 'compacted',
+      createdAt: '2025-01-05T09:15:00Z',
+    },
+  ],
+
+  openclawSoul: {
+    personality: 'Professional, knowledgeable, and supportive business AI assistant',
+    tone: 'formal yet friendly',
+    language: 'en-US',
+    specialty: 'Business planning, financial analysis, and market research for ASEAN SMEs',
+    greeting: 'Hello! I\'m GangNiaga AI, your autonomous business assistant. How can I help you today?',
+    rules: [
+      'Always respond in the language the user writes in (Bahasa Melayu, English, or others)',
+      'Provide data-driven answers with citations when possible',
+      'Never share sensitive financial data without verification',
+      'Proactively suggest relevant business insights when patterns are detected',
+      'Escalate critical financial anomalies to human principals immediately',
+    ],
+  },
+
+  // OpenClaw CRUD
+  updateOpenClawGateway: (updates) => set((s) => ({
+    openclawGateway: { ...s.openclawGateway, ...updates },
+  })),
+
+  addOpenClawChannel: (channel) => set((s) => ({
+    openclawChannels: [...s.openclawChannels, channel],
+  })),
+
+  updateOpenClawChannel: (id, updates) => set((s) => ({
+    openclawChannels: s.openclawChannels.map((ch) => ch.id === id ? { ...ch, ...updates } : ch),
+  })),
+
+  removeOpenClawChannel: (id) => set((s) => ({
+    openclawChannels: s.openclawChannels.filter((ch) => ch.id !== id),
+  })),
+
+  updateOpenClawPlugin: (id, updates) => set((s) => ({
+    openclawPlugins: s.openclawPlugins.map((pl) => pl.id === id ? { ...pl, ...updates } : pl),
+  })),
+
+  addOpenClawDelegate: (delegate) => set((s) => ({
+    openclawDelegates: [...s.openclawDelegates, delegate],
+  })),
+
+  updateOpenClawDelegate: (id, updates) => set((s) => ({
+    openclawDelegates: s.openclawDelegates.map((dl) => dl.id === id ? { ...dl, ...updates } : dl),
+  })),
+
+  addOpenClawWebhook: (webhook) => set((s) => ({
+    openclawWebhooks: [...s.openclawWebhooks, webhook],
+  })),
+
+  updateOpenClawWebhook: (id, updates) => set((s) => ({
+    openclawWebhooks: s.openclawWebhooks.map((wh) => wh.id === id ? { ...wh, ...updates } : wh),
+  })),
+
+  removeOpenClawWebhook: (id) => set((s) => ({
+    openclawWebhooks: s.openclawWebhooks.filter((wh) => wh.id !== id),
+  })),
+
+  addOpenClawScheduledTask: (task) => set((s) => ({
+    openclawScheduledTasks: [...s.openclawScheduledTasks, task],
+  })),
+
+  updateOpenClawScheduledTask: (id, updates) => set((s) => ({
+    openclawScheduledTasks: s.openclawScheduledTasks.map((st) => st.id === id ? { ...st, ...updates } : st),
+  })),
+
+  removeOpenClawScheduledTask: (id) => set((s) => ({
+    openclawScheduledTasks: s.openclawScheduledTasks.filter((st) => st.id !== id),
+  })),
+
+  updateOpenClawSoul: (updates) => set((s) => ({
+    openclawSoul: { ...s.openclawSoul, ...updates },
+  })),
 }));
