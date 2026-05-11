@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { db } from '@/lib/db';
 
-const SOUL_CONFIG_PATH = join(process.cwd(), 'openclaw-soul.json');
+const ORGANIZATION_ID = 'org1';
 
-interface SoulConfig {
+interface SoulConfigResponse {
   personality: string;
   tone: string;
   language: string;
@@ -13,35 +12,63 @@ interface SoulConfig {
   rules: string[];
 }
 
-const DEFAULT_SOUL_CONFIG: SoulConfig = {
+const DEFAULT_RULES: string[] = [
+  'Always respond in a professional yet approachable manner',
+  'Reference ASEAN market data and regulations when relevant',
+  'Provide actionable, specific advice rather than generic platitudes',
+  'If unsure about financial figures, explicitly state the uncertainty',
+  "Respect the user's time — be concise unless detail is requested",
+];
+
+const DEFAULT_SOUL = {
   personality: 'Professional, knowledgeable, and supportive ASEAN SME business assistant',
   tone: 'Professional yet approachable; uses Malaysian business English',
   language: 'English (with Bahasa Melayu and Mandarin loan words where appropriate)',
   specialty: 'ASEAN SME business planning, financial modeling, and market analysis',
-  greeting: 'Hello! I\'m your AI business assistant for GangNiaga. How can I help you grow your business today?',
-  rules: [
-    'Always respond in a professional yet approachable manner',
-    'Reference ASEAN market data and regulations when relevant',
-    'Provide actionable, specific advice rather than generic platitudes',
-    'If unsure about financial figures, explicitly state the uncertainty',
-    'Respect the user\'s time — be concise unless detail is requested',
-  ],
+  greeting: "Hello! I'm your AI business assistant for GangNiaga. How can I help you grow your business today?",
+  rules: JSON.stringify(DEFAULT_RULES),
 };
 
-async function getSoulConfig(): Promise<SoulConfig> {
+function toResponse(row: {
+  personality: string;
+  tone: string;
+  language: string;
+  specialty: string;
+  greeting: string;
+  rules: string;
+}): SoulConfigResponse {
+  let parsedRules: string[] = [];
   try {
-    const data = await readFile(SOUL_CONFIG_PATH, 'utf-8');
-    return JSON.parse(data) as SoulConfig;
+    parsedRules = JSON.parse(row.rules);
   } catch {
-    // Return default config if file doesn't exist
-    return DEFAULT_SOUL_CONFIG;
+    parsedRules = [];
   }
+  return {
+    personality: row.personality,
+    tone: row.tone,
+    language: row.language,
+    specialty: row.specialty,
+    greeting: row.greeting,
+    rules: parsedRules,
+  };
 }
 
 export async function GET() {
   try {
-    const config = await getSoulConfig();
-    return NextResponse.json(config);
+    let config = await db.openClawSoulConfig.findFirst({
+      where: { organizationId: ORGANIZATION_ID },
+    });
+
+    if (!config) {
+      config = await db.openClawSoulConfig.create({
+        data: {
+          ...DEFAULT_SOUL,
+          organizationId: ORGANIZATION_ID,
+        },
+      });
+    }
+
+    return NextResponse.json(toResponse(config));
   } catch (error) {
     console.error('Failed to read SOUL config:', error);
     return NextResponse.json(
@@ -71,18 +98,35 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const config: SoulConfig = {
-      personality,
-      tone,
-      language,
-      specialty,
-      greeting,
-      rules,
-    };
+    const existing = await db.openClawSoulConfig.findFirst({
+      where: { organizationId: ORGANIZATION_ID },
+    });
 
-    await writeFile(SOUL_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+    const config = existing
+      ? await db.openClawSoulConfig.update({
+          where: { id: existing.id },
+          data: {
+            personality,
+            tone,
+            language,
+            specialty,
+            greeting,
+            rules: JSON.stringify(rules),
+          },
+        })
+      : await db.openClawSoulConfig.create({
+          data: {
+            personality,
+            tone,
+            language,
+            specialty,
+            greeting,
+            rules: JSON.stringify(rules),
+            organizationId: ORGANIZATION_ID,
+          },
+        });
 
-    return NextResponse.json(config);
+    return NextResponse.json(toResponse(config));
   } catch (error) {
     console.error('Failed to update SOUL config:', error);
     return NextResponse.json(

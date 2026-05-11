@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "sqlite"  // Change to "postgresql" for Vercel/production deployment
   url      = env("DATABASE_URL")
 }
 
@@ -46,6 +46,7 @@ model Organization {
   openclawDelegates OpenClawDelegate[]
   openclawWebhooks OpenClawWebhook[]
   openclawScheduledTasks OpenClawScheduledTask[]
+  openclawSoulConfigs OpenClawSoulConfig[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -365,6 +366,20 @@ model OpenClawScheduledTask {
   lastRun        DateTime?
   nextRun        DateTime?
   runCount       Int      @default(0)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OpenClawSoulConfig {
+  id             String   @id @default(cuid())
+  personality    String   @default("Professional, knowledgeable, and supportive ASEAN SME business assistant")
+  tone           String   @default("Professional yet approachable; uses Malaysian business English")
+  language       String   @default("English (with Bahasa Melayu and Mandarin loan words where appropriate)")
+  specialty      String   @default("ASEAN SME business planning, financial modeling, and market analysis")
+  greeting       String   @default("Hello! I'm your AI business assistant for GangNiaga. How can I help you grow your business today?")
+  rules          String   @default("[]") // JSON array of strings
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime @default(now())

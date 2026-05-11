@@ -703,3 +703,115 @@ Stage Summary:
 - Routes cover: channels, gateway, plugins, delegates, webhooks, automation, and SOUL.md config
 - Proper error handling, status codes, and JSON field parsing throughout
 - Lint passes clean, no regressions
+
+---
+Task ID: 2
+Agent: Deployment Config Agent
+Task: Create .env.example and vercel.json for Vercel deployment
+
+Work Log:
+
+**Part 1: Created `/home/z/my-project/.env.example`**
+- Listed all environment variables the project needs, organized by category:
+  - Database: DATABASE_URL (SQLite local, PostgreSQL production)
+  - AI SDK: ZAI_API_KEY (required for AI features)
+  - Authentication: NEXTAUTH_SECRET, NEXTAUTH_URL, optional Google OAuth
+  - OpenClaw Integration: Telegram, Discord, Slack, WhatsApp tokens (all optional/commented)
+  - Accounting Integrations: QuickBooks, Xero client IDs/secrets (all optional/commented)
+  - App Settings: NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_APP_NAME
+- Matches env vars referenced in DEPLOYMENT.md and used across the codebase
+
+**Part 2: Created `/home/z/my-project/vercel.json`**
+- Framework preset: nextjs
+- Build command: npx next build
+- Install command: bun install
+- Dev command: bun run dev
+- Region: sin1 (Singapore — closest to ASEAN users)
+- Environment variable links: DATABASE_URL → @database-url, ZAI_API_KEY → @zai-api-key (Vercel secret references)
+
+**Part 3: Updated `/home/z/my-project/.gitignore`**
+- Changed `.env*` wildcard pattern to specific exclusions:
+  - `.env` (actual local env file)
+  - `.env.local` (local overrides)
+  - `.env.production` (production secrets)
+- This allows `.env.example` to be tracked in git while keeping private env files ignored
+
+**Part 4: Removed `.env` from git tracking**
+- `.env` was previously committed and tracked by git despite the `.env*` pattern
+- Ran `git rm --cached .env` to remove from tracking while keeping the file on disk
+- Verified: `.env`, `.env.local`, `.env.production` are now properly gitignored
+- Verified: `.env.example` is NOT ignored and will be tracked in git
+
+**Verification:**
+- `bun run lint` passes clean with no errors
+- Dev server compiling and serving 200s
+- All three files verified correct
+
+Stage Summary:
+- .env.example created with all project environment variables documented
+- vercel.json created for Vercel deployment with Singapore region
+- .gitignore updated to allow .env.example tracking while protecting private env files
+- .env removed from git tracking to prevent accidental secret commits
+
+---
+Task ID: 1
+Agent: SOUL API Fix Agent
+Task: Fix OpenClaw SOUL.md API route to use database instead of filesystem
+
+Work Log:
+
+- Added `OpenClawSoulConfig` model to `prisma/schema.prisma`:
+  - Fields: id (cuid), personality, tone, language, specialty, greeting, rules (JSON string), organizationId, createdAt, updatedAt
+  - All text fields have sensible defaults matching the GangNiaga AI persona
+  - `rules` field stores a JSON array of strings, defaulting to `"[]"`
+  - Added `openclawSoulConfigs OpenClawSoulConfig[]` relation to Organization model
+
+- Ran `bun run db:push` successfully — schema in sync
+
+- Rewrote `/home/z/my-project/src/app/api/openclaw/soul/route.ts`:
+  - Removed all `fs/promises` imports (`readFile`, `writeFile`) and `path` import
+  - Added `import { db } from '@/lib/db'` for Prisma database access
+  - Uses hardcoded `organizationId = 'org1'` consistent with other OpenClaw routes
+  - GET: Queries `OpenClawSoulConfig` for org 'org1'. If not found, creates one with defaults and returns it. Parses the `rules` JSON field into a string array in the response.
+  - PUT: Validates required fields (personality, tone, language, specialty, greeting) and that `rules` is an array. Uses findFirst + update/create pattern to safely persist the config. Stringifies the `rules` array for storage.
+  - Helper function `toResponse()` parses the stored `rules` JSON string back into a typed `SoulConfigResponse` object
+  - Default rules match the original 5 behavioral rules from the filesystem version
+
+- Ran `bun run lint` — passes clean with no errors
+- Dev server compiling and serving 200s
+
+Stage Summary:
+- SOUL API route no longer uses ephemeral filesystem — fully database-backed via Prisma
+- Vercel-compatible: no readFile/writeFile, all data persists in SQLite (or PostgreSQL in production)
+- All existing API contracts preserved (same request/response shape)
+- Lint passes clean, no regressions
+
+---
+Task ID: 4
+Agent: Documentation Agent
+Task: Update DEPLOYMENT.md with Vercel-specific deployment instructions
+
+Work Log:
+
+- Read existing DEPLOYMENT.md and worklog.md
+- Replaced the brief "Option 1: Vercel" section (~30 lines) with a comprehensive, step-by-step guide (~270 lines)
+- Key additions:
+  - **Prerequisites table**: GitHub account, Vercel account, PostgreSQL database requirement
+  - **Step 1: Set Up PostgreSQL Database**: Three options (Vercel Postgres, Neon, Supabase) with connection string examples
+  - **Step 2: Update Prisma Schema for PostgreSQL**: Diff showing sqlite → postgresql change with commit instructions
+  - **Step 3: Connect GitHub Repo to Vercel**: Detailed import configuration table (framework, build command, install command, region)
+  - **Step 4: Set Environment Variables**: Required (DATABASE_URL, ZAI_API_KEY, NEXTAUTH_SECRET, NEXTAUTH_URL) and optional variables with tables
+  - **Step 5: Deploy**: Build process explanation (bun install → prisma generate → prisma db push → next build)
+  - **Step 6: Set Up Vercel Postgres**: Post-deployment database creation with auto-injected DATABASE_URL
+  - **Post-Deployment Verification**: App load, API endpoint testing, custom domain setup
+  - **GitHub Auto-Deploy Setup**: Auto-deploy on push, preview deployments, rollback, CI/CD with GitHub Actions (example workflow YAML)
+  - **Troubleshooting Vercel**: 9 common issues with causes and solutions in table format, maxDuration configuration, build log checking instructions
+- Updated section title to include "⭐ #1 Recommended — Easiest & Fastest"
+- Updated version from v0.2.0 to v0.3.0
+- All existing content (Docker, VPS, Database Management, Security, etc.) preserved unchanged
+
+Stage Summary:
+- DEPLOYMENT.md Vercel section expanded from ~30 lines to ~270 lines with detailed step-by-step instructions
+- Vercel is now clearly positioned as the #1 recommended deployment option
+- All 6 deployment steps, post-deployment verification, GitHub auto-deploy, and troubleshooting sections added
+- No changes to any source code files
