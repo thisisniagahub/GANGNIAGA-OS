@@ -621,28 +621,49 @@ function createOpenAIProvider(): AIProvider {
 // ─── OpenRouter Provider ────────────────────────────────────────────────────
 
 function createOpenRouterProvider(): AIProvider {
-  // OpenRouter is OpenAI-compatible, so we reuse the same provider logic
-  // with different base URL and API key from OpenRouter env vars
-  const baseUrl = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$ */, '');
-  // Use the first available OpenRouter API key
+  // OpenRouter is fully OpenAI-compatible: https://openrouter.ai/docs/quickstart
+  // Base URL: https://openrouter.ai/api/v1
+  // Endpoints: /chat/completions, /models, etc.
+  // Headers: Authorization: Bearer <KEY>, HTTP-Referer (for rankings), X-OpenRouter-Title (for rankings)
+  // Models use format: provider/model (e.g. "openai/gpt-5.2", "anthropic/claude-sonnet-4")
+  const baseUrl = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
+  // Use the first available OpenRouter API key (supports multiple for load balancing)
   const apiKey = process.env.OPENROUTER_API_KEY_1 || process.env.OPENROUTER_API_KEY_2 ||
     process.env.OPENROUTER_API_KEY_3 || process.env.OPENROUTER_API_KEY_4 || '';
   const chatModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001';
   const appName = process.env.OPENROUTER_APP_NAME || 'GangNiaga AI OS';
   const appUrl = process.env.OPENROUTER_APP_URL || 'https://gangniaga.ai';
 
+  // Round-robin key selection for load balancing across multiple keys
+  let keyIndex = 0;
+  function getNextApiKey(): string {
+    const keys = [
+      process.env.OPENROUTER_API_KEY_1,
+      process.env.OPENROUTER_API_KEY_2,
+      process.env.OPENROUTER_API_KEY_3,
+      process.env.OPENROUTER_API_KEY_4,
+    ].filter((k): k is string => !!k);
+
+    if (keys.length === 0) return '';
+    const key = keys[keyIndex % keys.length];
+    keyIndex++;
+    return key;
+  }
+
   async function openrouterFetch(
     endpoint: string,
     options: RequestInit,
   ): Promise<Response> {
     const url = `${baseUrl}${endpoint}`;
+    const currentKey = getNextApiKey();
     const response = await fetch(url, {
       ...options,
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${currentKey}`,
         'Content-Type': 'application/json',
+        // OpenRouter-specific headers for app attribution (leaderboard rankings)
         'HTTP-Referer': appUrl,
-        'X-Title': appName,
+        'X-OpenRouter-Title': appName,
         ...options.headers,
       },
     });

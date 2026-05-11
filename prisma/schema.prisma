@@ -22,8 +22,9 @@ generator client {
 }
 
 datasource db {
-  // ⚠️  For Vercel deployment, change this to "postgresql" and set
-  //     DATABASE_URL to your PostgreSQL connection string.
+  // IMPORTANT: For Vercel deployment, this MUST be "postgresql"
+  // For local development with SQLite, change to "sqlite"
+  // Prisma requires the provider to match the DATABASE_URL format
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }

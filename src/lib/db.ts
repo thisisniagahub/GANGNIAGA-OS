@@ -5,6 +5,7 @@
  * The database provider is determined by the DATABASE_URL format:
  *   - file:...        → SQLite (local development)
  *   - postgresql:...  → PostgreSQL (Vercel/production)
+ *   - empty/missing   → No database (graceful degradation)
  *
  * In development, the PrismaClient instance is cached on globalThis
  * to survive hot-module reloads without creating connection leaks.
@@ -25,7 +26,7 @@ function createPrismaClient(): PrismaClient {
     ? 'SQLite'
     : dbUrl.startsWith('postgresql:')
       ? 'PostgreSQL'
-      : 'Unknown';
+      : 'None';
 
   // Configure logging based on environment
   const isDev = process.env.NODE_ENV !== 'production';
@@ -43,8 +44,29 @@ function createPrismaClient(): PrismaClient {
   return client;
 }
 
-export const db = globalForPrisma.prisma ?? createPrismaClient();
+// Only create PrismaClient if DATABASE_URL is set and non-empty
+const dbUrl = process.env.DATABASE_URL || '';
+const shouldCreateClient = dbUrl.length > 0 && dbUrl !== '""';
 
-if (process.env.NODE_ENV !== 'production') {
+export const db = shouldCreateClient
+  ? (globalForPrisma.prisma ?? createPrismaClient())
+  : null as unknown as PrismaClient; // Null when no database configured
+
+if (shouldCreateClient && process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db;
+}
+
+/**
+ * Check if the database is available and connected.
+ * Use this before making database calls to gracefully handle
+ * cases where no database is configured (e.g., first Vercel deploy).
+ */
+export async function isDatabaseAvailable(): Promise<boolean> {
+  if (!shouldCreateClient) return false;
+  try {
+    await db.$queryRaw`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
 }
