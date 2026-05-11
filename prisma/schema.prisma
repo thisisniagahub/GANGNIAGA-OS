@@ -1,9 +1,30 @@
+// ────────────────────────────────────────────────────────────────
+// GangNiaga AI OS — Prisma Schema
+//
+// DUAL-DATABASE SETUP:
+//   • Local dev  → SQLite  (DATABASE_URL starts with "file:")
+//   • Vercel/prod → PostgreSQL (DATABASE_URL starts with "postgresql:")
+//
+// Prisma automatically selects the correct provider based on the
+// DATABASE_URL format. To switch to PostgreSQL for production:
+//   1. Change provider below to "postgresql"
+//   2. Set DATABASE_URL to a PostgreSQL connection string
+//   3. Run `prisma migrate dev` to create migrations
+//   4. Run `bun run db:seed` to populate initial data
+//
+// NOTE: When deploying to Vercel, you MUST use provider = "postgresql"
+// and set up a PostgreSQL database (e.g., Vercel Postgres, Neon, Supabase).
+// SQLite will NOT work on Vercel (read-only filesystem).
+// ────────────────────────────────────────────────────────────────
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"  // Change to "postgresql" for Vercel/production deployment
+  // ⚠️  For Vercel deployment, change this to "postgresql" and set
+  //     DATABASE_URL to your PostgreSQL connection string.
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 

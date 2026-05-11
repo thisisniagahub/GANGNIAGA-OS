@@ -1,14 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
-
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
+import { getZAI } from '@/lib/zai';
 
 const TEMPLATE_CONTEXT: Record<string, string> = {
   investor: 'This is a VC/angel investor pitch deck. Emphasize: massive market opportunity, growth velocity, scalability, technology moat, unit economics, team strength, and 10x return potential. Use bold projections and highlight the "why now" urgency.',

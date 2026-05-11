@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import ZAI from 'z-ai-web-dev-sdk';
+import { getZAI } from '@/lib/zai';
 
 // Default org ID (no auth)
 const ORG_ID = 'org1';
@@ -35,15 +35,6 @@ export async function getSoulPrompt(): Promise<string> {
 }
 
 // ── AI Response ──
-
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
 
 export async function getAIResponse(
   message: string,

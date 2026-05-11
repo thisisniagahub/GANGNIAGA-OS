@@ -1,16 +1,17 @@
-import ZAI from 'z-ai-web-dev-sdk';
-
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+import { getAI, type AIProvider } from '@/lib/ai-provider';
 
 /**
- * Get or create a singleton ZAI SDK instance.
+ * Get or create a singleton AI provider instance.
+ *
+ * Auto-detects the provider based on environment:
+ * - ZAI SDK (dev/sandbox) if ZAI_BASE_URL is set or z-ai-web-dev-sdk is available
+ * - OpenAI-compatible API (production/Vercel) if OPENAI_API_KEY is set
+ * - No-op provider with helpful errors if neither is configured
+ *
  * Reuses the same instance across all API routes for efficiency.
  */
-export async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
+export async function getZAI(): Promise<AIProvider> {
+  return getAI();
 }
 
 /**

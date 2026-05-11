@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { getZAI } from '@/lib/zai';
 
 const SYSTEM_PROMPT = `You are GangNiaga AI Copilot — an autonomous business intelligence assistant built into GangNiaga AI OS. You are an expert in:
 
@@ -20,15 +20,6 @@ Key business context:
 - Revenue growth: ~11% MoM
 
 Keep responses concise but thorough. Use bullet points for lists. Provide specific numbers when relevant.`;
-
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-
-async function getZAI() {
-  if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
-}
 
 export async function POST(request: NextRequest) {
   try {
