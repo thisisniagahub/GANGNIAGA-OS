@@ -36,50 +36,6 @@ function createPrismaClient(): PrismaClient {
       : ['error'],
   });
 
-  // Graceful error handling for connection issues
-  client.$use(async (params, next) => {
-    try {
-      return await next(params);
-    } catch (error: unknown) {
-      // Log database errors with context
-      const message = error instanceof Error ? error.message : String(error);
-
-      if (
-        message.includes('P1001') ||
-        message.includes('Can\'t reach database')
-      ) {
-        console.error(
-          `[DB] Cannot reach database server. ` +
-          `Type: ${dbType}, URL prefix: ${dbUrl.substring(0, 20)}...`
-        );
-      } else if (
-        message.includes('P1002') ||
-        message.includes('Timed out')
-      ) {
-        console.error(
-          `[DB] Database connection timed out. ` +
-          `Type: ${dbType}, URL prefix: ${dbUrl.substring(0, 20)}...`
-        );
-      } else if (
-        message.includes('P2002') ||
-        message.includes('Unique constraint')
-      ) {
-        // Unique constraint violations are expected in upsert patterns — just re-throw
-        throw error;
-      } else if (
-        message.includes('P2025') ||
-        message.includes('Record not found')
-      ) {
-        // Record not found is a normal flow — just re-throw
-        throw error;
-      } else {
-        console.error(`[DB] Prisma error in ${params.model}.${params.action}:`, message);
-      }
-
-      throw error;
-    }
-  });
-
   if (isDev) {
     console.log(`[DB] Connected to ${dbType} database`);
   }

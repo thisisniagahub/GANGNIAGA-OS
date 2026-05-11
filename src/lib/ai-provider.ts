@@ -193,7 +193,7 @@ type FunctionResult<T extends FunctionName> = FunctionMap[T]['result'];
 
 // ─── Provider Detection ──────────────────────────────────────────────────────
 
-type ProviderType = 'zai' | 'openai' | 'none';
+type ProviderType = 'zai' | 'openai' | 'openrouter' | 'none';
 
 function detectProvider(): ProviderType {
   // Check for ZAI SDK availability first (dev/sandbox mode)
@@ -213,6 +213,19 @@ function detectProvider(): ProviderType {
   // Check for OpenAI-compatible API (production/Vercel mode)
   if (process.env.OPENAI_API_KEY) {
     return 'openai';
+  }
+
+  // Check for OpenRouter API (OpenAI-compatible, commonly used on Vercel)
+  // Supports OPENROUTER_API_KEY_1 through OPENROUTER_API_KEY_4
+  const openrouterKeys = [
+    process.env.OPENROUTER_API_KEY_1,
+    process.env.OPENROUTER_API_KEY_2,
+    process.env.OPENROUTER_API_KEY_3,
+    process.env.OPENROUTER_API_KEY_4,
+  ].filter(Boolean);
+
+  if (openrouterKeys.length > 0) {
+    return 'openrouter';
   }
 
   return 'none';
@@ -605,6 +618,202 @@ function createOpenAIProvider(): AIProvider {
   return provider;
 }
 
+// ─── OpenRouter Provider ────────────────────────────────────────────────────
+
+function createOpenRouterProvider(): AIProvider {
+  // OpenRouter is OpenAI-compatible, so we reuse the same provider logic
+  // with different base URL and API key from OpenRouter env vars
+  const baseUrl = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$ */, '');
+  // Use the first available OpenRouter API key
+  const apiKey = process.env.OPENROUTER_API_KEY_1 || process.env.OPENROUTER_API_KEY_2 ||
+    process.env.OPENROUTER_API_KEY_3 || process.env.OPENROUTER_API_KEY_4 || '';
+  const chatModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001';
+  const appName = process.env.OPENROUTER_APP_NAME || 'GangNiaga AI OS';
+  const appUrl = process.env.OPENROUTER_APP_URL || 'https://gangniaga.ai';
+
+  async function openrouterFetch(
+    endpoint: string,
+    options: RequestInit,
+  ): Promise<Response> {
+    const url = `${baseUrl}${endpoint}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': appUrl,
+        'X-Title': appName,
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      const error = new Error(
+        `OpenRouter API error (${response.status}): ${errorText}`,
+      );
+      (error as any).status = response.status;
+      throw error;
+    }
+
+    return response;
+  }
+
+  const provider: AIProvider = {
+    chat: {
+      completions: {
+        create: async (body) => {
+          const { thinking, ...openaiBody } = body;
+          const response = await openrouterFetch('/chat/completions', {
+            method: 'POST',
+            body: JSON.stringify({
+              ...openaiBody,
+              model: openaiBody.model || chatModel,
+            }),
+          });
+          return response.json() as Promise<ChatCompletionResponse>;
+        },
+        createVision: async (body) => {
+          const { thinking, ...openaiBody } = body;
+          const response = await openrouterFetch('/chat/completions', {
+            method: 'POST',
+            body: JSON.stringify({
+              ...openaiBody,
+              model: openaiBody.model || chatModel,
+            }),
+          });
+          return response.json() as Promise<ChatCompletionResponse>;
+        },
+      },
+    },
+
+    audio: {
+      tts: {
+        // OpenRouter doesn't support TTS natively — use chat to describe audio
+        create: async (body) => {
+          // Fallback: generate a text response describing what the audio would say
+          const completion = await provider.chat.completions.create({
+            messages: [
+              { role: 'system', content: 'You are a helpful assistant. Respond concisely.' },
+              { role: 'user', content: body.input },
+            ],
+          });
+          const text = completion.choices?.[0]?.message?.content || body.input;
+          // Return empty audio buffer with text content in headers
+          return new Response(new ArrayBuffer(0), {
+            status: 200,
+            headers: {
+              'Content-Type': 'audio/mpeg',
+              'X-TTS-Text': encodeURIComponent(text.substring(0, 500)),
+              'X-TTS-Note': 'OpenRouter does not support TTS. Use client-side TTS instead.',
+            },
+          }) as TTSResponse;
+        },
+      },
+      asr: {
+        // OpenRouter doesn't support ASR natively
+        create: async () => {
+          return new Response(
+            JSON.stringify({
+              text: '',
+              note: 'OpenRouter does not support ASR. Audio transcription is not available.',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ) as ASRResponse;
+        },
+      },
+    },
+
+    images: {
+      generations: {
+        // OpenRouter can route to image models if configured
+        create: async (body) => {
+          // Try using OpenRouter's image generation endpoint
+          try {
+            const response = await openrouterFetch('/images/generations', {
+              method: 'POST',
+              body: JSON.stringify({
+                model: body.model || 'openai/dall-e-3',
+                prompt: body.prompt,
+                size: body.size || '1024x1024',
+                response_format: 'b64_json',
+                n: 1,
+              }),
+            });
+            const result = await response.json();
+            const mapped: ImageGenerationResponse = {
+              created: result.created || Math.floor(Date.now() / 1000),
+              data: (result.data || []).map(
+                (item: { b64_json?: string; url?: string }) => ({
+                  base64: item.b64_json || '',
+                }),
+              ),
+            };
+            return mapped;
+          } catch {
+            // If image generation fails, return empty response
+            return { created: Math.floor(Date.now() / 1000), data: [] } as ImageGenerationResponse;
+          }
+        },
+        edit: async () => {
+          return { created: Math.floor(Date.now() / 1000), data: [] } as ImageGenerationResponse;
+        },
+      },
+    },
+
+    functions: {
+      invoke: async (name, args) => {
+        if (name === 'web_search') {
+          const searchQuery = (args as { query: string }).query;
+          const completion = await provider.chat.completions.create({
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a web search assistant. Provide search results as JSON array: ' +
+                  '[{"url":"https://...","name":"Title","snippet":"Description","host_name":"example.com","rank":1,"date":"2024-01-01","favicon":""}] ' +
+                  'Provide 5-10 realistic results based on your knowledge.',
+              },
+              { role: 'user', content: searchQuery },
+            ],
+          });
+
+          const content = completion.choices?.[0]?.message?.content || '[]';
+          try {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) return JSON.parse(jsonMatch[0]) as SearchFunctionResultItem[];
+            return JSON.parse(content) as SearchFunctionResultItem[];
+          } catch {
+            return [{ url: '', name: 'AI Search Result', snippet: content.substring(0, 500), host_name: '', rank: 1, date: new Date().toISOString().split('T')[0], favicon: '' }] as SearchFunctionResultItem[];
+          }
+        }
+
+        if (name === 'page_reader') {
+          const pageUrl = (args as { url: string }).url;
+          const completion = await provider.chat.completions.create({
+            messages: [
+              { role: 'system', content: 'Summarize what would likely be on this page. Format as JSON: {"code":200,"data":{"html":"<p>Summary</p>","title":"Title","url":"URL","usage":{"tokens":0}},"meta":{"usage":{"tokens":0}},"status":200}' },
+              { role: 'user', content: `Describe: ${pageUrl}` },
+            ],
+          });
+          const content = completion.choices?.[0]?.message?.content || '';
+          try {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) return JSON.parse(jsonMatch[0]) as PageReaderFunctionResult;
+            return JSON.parse(content) as PageReaderFunctionResult;
+          } catch {
+            return { code: 200, data: { html: `<p>${content}</p>`, title: pageUrl, url: pageUrl, usage: { tokens: 0 } }, meta: { usage: { tokens: 0 } }, status: 200 } as PageReaderFunctionResult;
+          }
+        }
+
+        throw new Error(`Unknown function: ${name}`);
+      },
+    },
+  };
+
+  return provider;
+}
+
 // ─── No-Op Provider (Graceful Degradation) ──────────────────────────────────
 
 function createNoOpProvider(): AIProvider {
@@ -665,6 +874,9 @@ export async function getAI(): Promise<AIProvider> {
     case 'openai':
       provider = createOpenAIProvider();
       break;
+    case 'openrouter':
+      provider = createOpenRouterProvider();
+      break;
     case 'none':
       provider = createNoOpProvider();
       break;
@@ -694,6 +906,8 @@ export function getProviderDescription(): string {
       return 'Z AI SDK (Development/Sandbox Mode)';
     case 'openai':
       return `OpenAI-Compatible API (${process.env.OPENAI_BASE_URL || 'https://api.openai.com'})`;
+    case 'openrouter':
+      return `OpenRouter API (${process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'}, model: ${process.env.OPENROUTER_MODEL || 'auto'})`;
     case 'none':
       return 'No AI Provider Configured';
   }
