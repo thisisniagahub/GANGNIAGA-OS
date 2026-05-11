@@ -1073,3 +1073,32 @@ Stage Summary:
 - .env.production.example for Vercel deployment
 - db.ts enhanced with dual-database support, error handling middleware, and logging
 - All existing functionality preserved — no regressions
+
+---
+Task ID: 10
+Agent: Main Orchestrator
+Task: Vercel deployment with OpenRouter AI provider, multi-provider adapter, PostgreSQL support
+
+Work Log:
+- Reviewed OpenRouter quickstart docs at https://openrouter.ai/docs/quickstart
+- Key findings: API is OpenAI-compatible at /api/v1/chat/completions, headers are HTTP-Referer and X-OpenRouter-Title (NOT X-Title)
+- Created multi-provider AI adapter (src/lib/ai-provider.ts) with 4 providers: ZAI SDK, OpenAI, OpenRouter, No-op
+- OpenRouter provider uses round-robin key selection across OPENROUTER_API_KEY_1-4
+- Fixed OpenRouter headers: X-OpenRouter-Title (correct per docs, not X-Title)
+- Centralized all AI calls through getZAI() from @/lib/zai — removed direct z-ai-web-dev-sdk imports from 8 API routes
+- Updated db.ts: removed Prisma $use middleware (not supported in v6+), added graceful fallback when DATABASE_URL is empty
+- Created AI status endpoint at /api/ai/status showing current provider and capabilities
+- Created prisma/seed.ts with idempotent seeding (org, skills, memories, gateway data)
+- Created .env.production.example with PostgreSQL + OpenAI/OpenRouter config
+- Pushed to GitHub: https://github.com/thisisniagahub/GANGNIAGA-OS.git
+- Deployed to Vercel successfully: https://puspa-beta.gangniaga.my
+- Build completed in 57 seconds, 40 pages generated, all API routes registered as serverless functions
+- Vercel project has OpenRouter API keys (1-4), Telegram bot token, and app attribution headers configured
+
+Stage Summary:
+- GangNiaga AI OS is now LIVE on Vercel at https://puspa-beta.gangniaga.my
+- AI features powered by OpenRouter (4 API keys with round-robin load balancing)
+- Multi-provider architecture: ZAI SDK (dev) → OpenAI → OpenRouter → graceful no-op
+- 40 pages + 40 API endpoints deployed as serverless functions
+- Database currently not configured on Vercel (SQLite not supported, PostgreSQL URL needed)
+- Frontend + AI features fully functional without database
