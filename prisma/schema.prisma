@@ -47,6 +47,10 @@ model Organization {
   openclawWebhooks OpenClawWebhook[]
   openclawScheduledTasks OpenClawScheduledTask[]
   openclawSoulConfigs OpenClawSoulConfig[]
+  gatewayConversations GatewayConversation[]
+  skills        Skill[]
+  memoriesV2    AgentMemoryV2[]
+  chatSessions  ChatSession[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -380,6 +384,79 @@ model OpenClawSoulConfig {
   specialty      String   @default("ASEAN SME business planning, financial modeling, and market analysis")
   greeting       String   @default("Hello! I'm your AI business assistant for GangNiaga. How can I help you grow your business today?")
   rules          String   @default("[]") // JSON array of strings
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ── Gateway Messaging Conversations ──
+
+model GatewayConversation {
+  id             String   @id @default(cuid())
+  platform       String   // telegram, whatsapp, discord, etc.
+  platformUserId String   // Unique user ID on the platform (e.g., Telegram chat ID, WhatsApp phone number)
+  userName       String?  // Display name from the platform
+  direction      String   // inbound, outbound
+  messageType    String   @default("text") // text, voice, image, system
+  content        String   // Message content
+  metadata       String?  // JSON: additional platform-specific data (message_id, raw payload, etc.)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+}
+
+// ── Hermes-Inspired: Skills System ──
+
+model Skill {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  slug           String   @unique
+  description    String
+  version        String   @default("1.0.0")
+  category       String   @default("general") // general, business, financial, marketing, research, automation
+  content        String   // The skill instructions/knowledge (markdown)
+  triggerPhrase  String?  // Slash command trigger e.g. "/market-analysis"
+  tags           String?  // JSON array of tags
+  usageCount     Int      @default(0)
+  lastUsedAt     DateTime?
+  source         String   @default("user_created") // user_created, ai_generated, bundled, hub
+  status         String   @default("active") // active, deprecated, draft
+  autoLearn      Boolean  @default(false) // Can this skill auto-improve from conversations?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ── Hermes-Inspired: Persistent Memory ──
+
+model AgentMemoryV2 {
+  id             String   @id @default(cuid())
+  type           String   @default("memory") // memory, user_profile
+  key            String   // Short label for this memory entry
+  content        String   // The actual memory content
+  importance     Int      @default(5) // 1-10 importance score
+  charLimit      Int      @default(500) // Max chars for this entry
+  sessionId      String?  // Which session created this memory
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ── Hermes-Inspired: Chat Sessions ──
+
+model ChatSession {
+  id             String   @id @default(cuid())
+  title          String?
+  platform       String   @default("web") // web, telegram, whatsapp, discord, slack
+  platformSessionId String? // External platform session ID
+  messages       String   @default("[]") // JSON array of messages
+  memorySnapshot String?  // Frozen memory at session start
+  soulSnapshot   String?  // Frozen SOUL.md at session start
+  skillsUsed     String?  // JSON array of skill IDs used
+  status         String   @default("active") // active, ended, archived
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
   createdAt      DateTime @default(now())

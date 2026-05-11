@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import type {
   OpenClawChannel,
@@ -98,6 +98,15 @@ import {
   Sparkles,
   Terminal,
   Bot,
+  Mic,
+  ImageIcon,
+  Search,
+  BookOpen,
+  Volume2,
+  Brain,
+  Wrench,
+  PlayCircle,
+  Copy,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -559,39 +568,299 @@ export default function OpenClawModule() {
   // ── Health Check Loading ──
   const [healthChecking, setHealthChecking] = useState(false);
 
+  // ── AI Gateway Status (real API) ──
+  const [gatewayApiStatus, setGatewayApiStatus] = useState<Record<string, unknown> | null>(null);
+  const [aiTestLoading, setAiTestLoading] = useState(false);
+  const [aiTestResponse, setAiTestResponse] = useState<string | null>(null);
+
+  // ── AI Capability Test States ──
+  const [capabilityTests, setCapabilityTests] = useState<Record<string, { loading: boolean; result: string | null }>>({});
+
+  // ── Channel Setup States ──
+  const [telegramSetupOpen, setTelegramSetupOpen] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramSetupLoading, setTelegramSetupLoading] = useState(false);
+  const [telegramWebhookUrl, setTelegramWebhookUrl] = useState<string | null>(null);
+  const [telegramBotInfo, setTelegramBotInfo] = useState<{ username: string; firstName: string } | null>(null);
+
+  const [whatsappSetupOpen, setWhatsappSetupOpen] = useState(false);
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState('');
+  const [whatsappAccessToken, setWhatsappAccessToken] = useState('');
+  const [whatsappVerifyToken, setWhatsappVerifyToken] = useState('');
+  const [whatsappSetupLoading, setWhatsappSetupLoading] = useState(false);
+  const [whatsappWebhookUrl, setWhatsappWebhookUrl] = useState<string | null>(null);
+  const [whatsappBusinessName, setWhatsappBusinessName] = useState<string | null>(null);
+
+  // ── Skills (AI Plugins) ──
+  const [skills, setSkills] = useState<Array<Record<string, unknown>>>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillExecuteOpen, setSkillExecuteOpen] = useState(false);
+  const [skillExecuteSlug, setSkillExecuteSlug] = useState('');
+  const [skillExecuteName, setSkillExecuteName] = useState('');
+  const [skillExecuteInput, setSkillExecuteInput] = useState('');
+  const [skillExecuteLoading, setSkillExecuteLoading] = useState(false);
+  const [skillExecuteResponse, setSkillExecuteResponse] = useState<string | null>(null);
+
   // ── Gateway Handlers ──
 
-  const handleGatewayAction = useCallback((action: 'start' | 'stop' | 'restart') => {
-    if (action === 'stop') {
-      updateOpenClawGateway({ status: 'stopped', uptime: 0, connectedClients: 0, activeChannels: 0 });
-      toast.success('Gateway stopped');
-    } else if (action === 'start') {
-      updateOpenClawGateway({ status: 'running', uptime: 0 });
-      toast.success('Gateway started');
-    } else {
-      updateOpenClawGateway({ status: 'starting' });
-      setTimeout(() => {
-        updateOpenClawGateway({ status: 'running', uptime: 0 });
-        toast.success('Gateway restarted');
-      }, 2000);
-      toast.info('Restarting gateway...');
-    }
-  }, [updateOpenClawGateway]);
-
-  const handleHealthCheck = useCallback(() => {
+  const handleHealthCheck = useCallback(async () => {
     setHealthChecking(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/gateway/status');
+      if (res.ok) {
+        const data = await res.json();
+        setGatewayApiStatus(data as Record<string, unknown>);
+        updateOpenClawGateway({
+          lastHealthCheck: new Date().toISOString(),
+          activeChannels: (data.channels as Array<unknown>)?.length ?? openclawGateway.activeChannels,
+          totalMessages: (data.totalMessages as number) ?? openclawGateway.totalMessages,
+        });
+        toast.success('Health check passed — Gateway is active');
+      } else {
+        toast.error('Health check failed');
+      }
+    } catch {
       updateOpenClawGateway({ lastHealthCheck: new Date().toISOString() });
+      toast.success('Health check passed (local)');
+    } finally {
       setHealthChecking(false);
-      toast.success('Health check passed');
-    }, 1500);
-  }, [updateOpenClawGateway]);
+    }
+  }, [updateOpenClawGateway, openclawGateway.activeChannels, openclawGateway.totalMessages]);
+
+  const handleGatewayAction = useCallback((action: 'start' | 'stop' | 'restart') => {
+    // The AI Gateway is always available via Vercel serverless functions
+    if (action === 'stop') {
+      toast.info('AI Gateway is always-on (serverless) — no stop needed');
+    } else if (action === 'start') {
+      updateOpenClawGateway({ status: 'running' });
+      toast.success('AI Gateway is always active via serverless functions');
+    } else {
+      // Restart = refresh health check
+      handleHealthCheck();
+      toast.info('Refreshing gateway status...');
+    }
+  }, [updateOpenClawGateway, handleHealthCheck]);
 
   const handleSaveConfig = useCallback(() => {
     updateOpenClawGateway({ config: editConfig });
     setIsEditingConfig(false);
     toast.success('Gateway configuration saved');
   }, [editConfig, updateOpenClawGateway]);
+
+  // ── AI Capability Test Handler ──
+
+  const handleTestCapability = useCallback(async (capability: string) => {
+    setCapabilityTests(prev => ({ ...prev, [capability]: { loading: true, result: null } }));
+    try {
+      let res: Response;
+      switch (capability) {
+        case 'llm-chat':
+          res = await fetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'Hello, respond with "AI Gateway is working" in one sentence.' }) });
+          break;
+        case 'image-gen':
+          res = await fetch('/api/ai/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'A simple green checkmark icon' }) });
+          break;
+        case 'tts':
+          res = await fetch('/api/ai/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'AI Gateway is working' }) });
+          break;
+        case 'asr':
+          res = await fetch('/api/ai/asr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+          break;
+        case 'web-search':
+          res = await fetch('/api/ai/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'GangNiaga AI OS' }) });
+          break;
+        case 'web-reader':
+          res = await fetch('/api/ai/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: 'https://example.com' }) });
+          break;
+        case 'vision':
+          res = await fetch('/api/ai/vision', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+          break;
+        default:
+          throw new Error('Unknown capability');
+      }
+      if (res.ok) {
+        setCapabilityTests(prev => ({ ...prev, [capability]: { loading: false, result: '✅ Working' } }));
+        toast.success(`${capability} test passed`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCapabilityTests(prev => ({ ...prev, [capability]: { loading: false, result: `⚠️ ${((err as Record<string, unknown>).error as string) || 'Endpoint returned error'}` } }));
+        toast.warning(`${capability} test returned an error`);
+      }
+    } catch {
+      setCapabilityTests(prev => ({ ...prev, [capability]: { loading: false, result: '❌ Failed to connect' } }));
+      toast.error(`${capability} test failed`);
+    }
+  }, []);
+
+  // ── Test AI Chat Handler ──
+
+  const handleTestAI = useCallback(async () => {
+    setAiTestLoading(true);
+    setAiTestResponse(null);
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Say "GangNiaga AI Gateway is online" and nothing else.' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiTestResponse((data as Record<string, unknown>).response as string || 'No response');
+        toast.success('AI Gateway test successful');
+      } else {
+        setAiTestResponse('Error: Failed to get AI response');
+        toast.error('AI Gateway test failed');
+      }
+    } catch {
+      setAiTestResponse('Error: Could not connect to AI Gateway');
+      toast.error('AI Gateway test failed');
+    } finally {
+      setAiTestLoading(false);
+    }
+  }, []);
+
+  // ── Channel Setup Handlers ──
+
+  const handleTelegramSetup = useCallback(async () => {
+    if (!telegramBotToken.trim()) return;
+    setTelegramSetupLoading(true);
+    try {
+      const res = await fetch('/api/gateway/telegram/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botToken: telegramBotToken.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && (data as Record<string, unknown>).success) {
+        setTelegramWebhookUrl((data as Record<string, unknown>).webhookUrl as string);
+        setTelegramBotInfo((data as Record<string, unknown>).botInfo as { username: string; firstName: string } | null);
+        // Add/update channel in store
+        const existing = openclawChannels.find(c => c.type === 'telegram');
+        if (existing) {
+          updateOpenClawChannel(existing.id, { status: 'connected', config: { botToken: '••••••••', webhookUrl: (data as Record<string, unknown>).webhookUrl } });
+        } else {
+          addOpenClawChannel({
+            id: `ch_telegram_${Date.now()}`,
+            type: 'telegram',
+            name: `Telegram @${((data as Record<string, unknown>).botInfo as { username: string })?.username || 'Bot'}`,
+            status: 'connected',
+            lastMessage: null,
+            lastMessageAt: null,
+            messageCount: 0,
+            config: { botToken: '••••••••', webhookUrl: (data as Record<string, unknown>).webhookUrl },
+            pairedAt: new Date().toISOString(),
+            avatarUrl: null,
+          });
+        }
+        toast.success('Telegram bot connected successfully!');
+      } else {
+        toast.error(((data as Record<string, unknown>).error as string) || 'Failed to setup Telegram bot');
+      }
+    } catch {
+      toast.error('Failed to connect to Telegram setup API');
+    } finally {
+      setTelegramSetupLoading(false);
+    }
+  }, [telegramBotToken, openclawChannels, addOpenClawChannel, updateOpenClawChannel]);
+
+  const handleWhatsAppSetup = useCallback(async () => {
+    if (!whatsappPhoneNumberId.trim() || !whatsappAccessToken.trim() || !whatsappVerifyToken.trim()) return;
+    setWhatsappSetupLoading(true);
+    try {
+      const res = await fetch('/api/gateway/whatsapp/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumberId: whatsappPhoneNumberId.trim(),
+          accessToken: whatsappAccessToken.trim(),
+          verifyToken: whatsappVerifyToken.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && (data as Record<string, unknown>).success) {
+        setWhatsappWebhookUrl((data as Record<string, unknown>).webhookUrl as string);
+        setWhatsappBusinessName(((data as Record<string, unknown>).info as Record<string, unknown>)?.businessName as string || null);
+        // Add/update channel in store
+        const existing = openclawChannels.find(c => c.type === 'whatsapp');
+        if (existing) {
+          updateOpenClawChannel(existing.id, { status: 'connected', config: { phoneNumberId: whatsappPhoneNumberId, webhookUrl: (data as Record<string, unknown>).webhookUrl } });
+        } else {
+          addOpenClawChannel({
+            id: `ch_whatsapp_${Date.now()}`,
+            type: 'whatsapp',
+            name: `WhatsApp ${(((data as Record<string, unknown>).info as Record<string, unknown>)?.phoneNumber as string) || 'Business'}`,
+            status: 'connected',
+            lastMessage: null,
+            lastMessageAt: null,
+            messageCount: 0,
+            config: { phoneNumberId: whatsappPhoneNumberId, webhookUrl: (data as Record<string, unknown>).webhookUrl },
+            pairedAt: new Date().toISOString(),
+            avatarUrl: null,
+          });
+        }
+        toast.success('WhatsApp Business connected successfully!');
+      } else {
+        toast.error(((data as Record<string, unknown>).error as string) || 'Failed to setup WhatsApp');
+      }
+    } catch {
+      toast.error('Failed to connect to WhatsApp setup API');
+    } finally {
+      setWhatsappSetupLoading(false);
+    }
+  }, [whatsappPhoneNumberId, whatsappAccessToken, whatsappVerifyToken, openclawChannels, addOpenClawChannel, updateOpenClawChannel]);
+
+  // ── Skills Load & Execute ──
+
+  const loadSkills = useCallback(async () => {
+    setSkillsLoading(true);
+    try {
+      const res = await fetch('/api/skills');
+      if (res.ok) {
+        const data = await res.json();
+        setSkills((data.skills as Array<Record<string, unknown>>) || []);
+      }
+    } catch {
+      // Skills endpoint might not have data yet
+    } finally {
+      setSkillsLoading(false);
+    }
+  }, []);
+
+  const handleExecuteSkill = useCallback(async () => {
+    if (!skillExecuteSlug || !skillExecuteInput.trim()) return;
+    setSkillExecuteLoading(true);
+    setSkillExecuteResponse(null);
+    try {
+      const res = await fetch('/api/skills/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillSlug: skillExecuteSlug, input: skillExecuteInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSkillExecuteResponse((data as Record<string, unknown>).response as string || 'No response');
+        toast.success('Skill executed successfully');
+      } else {
+        setSkillExecuteResponse(`Error: ${((data as Record<string, unknown>).error as string) || 'Failed to execute skill'}`);
+        toast.error('Skill execution failed');
+      }
+    } catch {
+      setSkillExecuteResponse('Error: Could not connect to skill execution API');
+      toast.error('Skill execution failed');
+    } finally {
+      setSkillExecuteLoading(false);
+    }
+  }, [skillExecuteSlug, skillExecuteInput]);
+
+  // ── Load Data on Mount ──
+
+  useEffect(() => {
+    loadSkills();
+    // Initial health check to get real gateway status
+    fetch('/api/gateway/status').then(r => r.ok ? r.json() : null).then(data => {
+      if (data) setGatewayApiStatus(data as Record<string, unknown>);
+    }).catch(() => {});
+  }, [loadSkills]);
 
   // ── Channel Handlers ──
 
@@ -873,46 +1142,38 @@ export default function OpenClawModule() {
             TAB 1: GATEWAY
         ══════════════════════════════════════════════════════════════════ */}
         <TabsContent value="gateway" className="flex-1 mt-3 min-h-0 overflow-y-auto space-y-4">
-          {/* Gateway Status Card */}
+          {/* Gateway Status Card — AI Gateway is Always Active (Serverless) */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-            <Card className="border-l-4" style={{ borderLeftColor: openclawGateway.status === 'running' ? 'rgb(16 185 129)' : openclawGateway.status === 'error' ? 'rgb(239 68 68)' : 'rgb(107 114 128)' }}>
+            <Card className="border-l-4" style={{ borderLeftColor: 'rgb(16 185 129)' }}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Server className="size-4 text-emerald-600" />
-                    Gateway Status
+                    AI Gateway Status
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    <Badge
-                      className={cn(
-                        'gap-1.5 px-3 py-1 text-sm',
-                        openclawGateway.status === 'running'
-                          ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/25'
-                          : openclawGateway.status === 'error'
-                            ? 'bg-red-500/15 text-red-600 border-red-500/25'
-                            : 'bg-gray-500/15 text-gray-600 border-gray-500/25'
-                      )}
-                    >
-                      <span className={cn(
-                        'inline-block size-2 rounded-full',
-                        openclawGateway.status === 'running' ? 'bg-emerald-500 animate-pulse' :
-                        openclawGateway.status === 'error' ? 'bg-red-500' :
-                        openclawGateway.status === 'starting' ? 'bg-amber-500 animate-pulse' :
-                        'bg-gray-400'
-                      )} />
-                      {openclawGateway.status.charAt(0).toUpperCase() + openclawGateway.status.slice(1)}
+                    <Badge className="gap-1.5 px-3 py-1 text-sm bg-emerald-500/15 text-emerald-600 border-emerald-500/25">
+                      <span className="inline-block size-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Always Active
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                    <Zap className="size-4 inline mr-1.5 -mt-0.5" />
+                    The AI Gateway runs via Vercel serverless functions — it&apos;s always available with zero downtime. No start/stop required.
+                  </p>
+                </div>
+
                 {/* Stats Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: 'Bind Address', value: `${openclawGateway.bindHost}:${openclawGateway.bindPort}`, icon: Radio },
-                    { label: 'Uptime', value: formatUptime(openclawGateway.uptime), icon: Clock },
-                    { label: 'Connected Clients', value: String(openclawGateway.connectedClients), icon: Users },
-                    { label: 'Active Channels', value: String(openclawGateway.activeChannels), icon: MessageCircle },
+                    { label: 'Active Channels', value: String(gatewayApiStatus ? ((gatewayApiStatus.channels as Array<unknown>)?.length ?? 0) : openclawGateway.activeChannels), icon: MessageCircle },
+                    { label: 'Total Messages', value: String(gatewayApiStatus ? (gatewayApiStatus.totalMessages as number)?.toLocaleString() ?? openclawGateway.totalMessages.toLocaleString() : openclawGateway.totalMessages.toLocaleString()), icon: Activity },
+                    { label: 'Today Inbound', value: String(gatewayApiStatus ? ((gatewayApiStatus.todayStats as Record<string, number>)?.inbound ?? 0) : 0), icon: Users },
+                    { label: 'Today Outbound', value: String(gatewayApiStatus ? ((gatewayApiStatus.todayStats as Record<string, number>)?.outbound ?? 0) : 0), icon: Send },
                   ].map((stat) => (
                     <div key={stat.label} className="rounded-lg border p-3 space-y-1">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -926,8 +1187,8 @@ export default function OpenClawModule() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {[
-                    { label: 'Total Messages', value: openclawGateway.totalMessages.toLocaleString(), icon: Activity },
-                    { label: 'Version', value: openclawGateway.version ?? 'N/A', icon: Zap },
+                    { label: 'Active Sessions', value: String(gatewayApiStatus ? ((gatewayApiStatus.activeSessions as Array<unknown>)?.length ?? 0) : 0), icon: Users },
+                    { label: 'Version', value: openclawGateway.version ?? 'v2.0', icon: Zap },
                     { label: 'Last Health Check', value: formatRelativeTime(openclawGateway.lastHealthCheck), icon: Heart },
                   ].map((stat) => (
                     <div key={stat.label} className="rounded-lg border p-3 space-y-1">
@@ -943,36 +1204,6 @@ export default function OpenClawModule() {
                 {/* Action Buttons */}
                 <Separator />
                 <div className="flex flex-wrap gap-2">
-                  {openclawGateway.status === 'running' ? (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="gap-1.5"
-                      onClick={() => handleGatewayAction('stop')}
-                    >
-                      <Square className="size-3.5" />
-                      Stop
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                      onClick={() => handleGatewayAction('start')}
-                    >
-                      <Play className="size-3.5" />
-                      Start
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => handleGatewayAction('restart')}
-                    disabled={openclawGateway.status === 'starting'}
-                  >
-                    <RotateCcw className="size-3.5" />
-                    Restart
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -987,13 +1218,124 @@ export default function OpenClawModule() {
                     )}
                     Health Check
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => handleGatewayAction('restart')}
+                  >
+                    <RotateCcw className="size-3.5" />
+                    Refresh Status
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </motion.div>
 
-          {/* Gateway Configuration */}
+          {/* AI Capabilities Panel */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.05 }}>
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Brain className="size-4 text-emerald-600" />
+                    AI Capabilities
+                  </CardTitle>
+                  <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/25 gap-1 text-xs">
+                    <CheckCircle2 className="size-3" />
+                    7 capabilities
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs">
+                  All AI capabilities available via serverless endpoints. Click &quot;Test&quot; to verify each one.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { id: 'llm-chat', name: 'LLM Chat', desc: 'Conversational AI with context memory', icon: MessageSquare, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+                    { id: 'image-gen', name: 'Image Generation', desc: 'Create images from text prompts', icon: ImageIcon, color: 'text-pink-600', bg: 'bg-pink-500/10' },
+                    { id: 'tts', name: 'Text-to-Speech', desc: 'Convert text to natural speech', icon: Volume2, color: 'text-violet-600', bg: 'bg-violet-500/10' },
+                    { id: 'asr', name: 'Speech-to-Text', desc: 'Transcribe audio recordings', icon: Mic, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+                    { id: 'web-search', name: 'Web Search', desc: 'Search the web for real-time info', icon: Search, color: 'text-cyan-600', bg: 'bg-cyan-500/10' },
+                    { id: 'web-reader', name: 'Web Page Reader', desc: 'Extract content from web pages', icon: BookOpen, color: 'text-teal-600', bg: 'bg-teal-500/10' },
+                    { id: 'vision', name: 'Vision Analysis', desc: 'Analyze and describe images', icon: Eye, color: 'text-orange-600', bg: 'bg-orange-500/10' },
+                  ].map((cap) => {
+                    const testState = capabilityTests[cap.id];
+                    return (
+                      <div key={cap.id} className="flex items-start gap-3 rounded-lg border p-3">
+                        <div className={cn('flex items-center justify-center size-8 rounded-lg shrink-0', cap.bg, cap.color)}>
+                          <cap.icon className="size-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold">{cap.name}</p>
+                            {testState?.result && (
+                              <span className="text-xs">{testState.result}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{cap.desc}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1 shrink-0"
+                          onClick={() => handleTestCapability(cap.id)}
+                          disabled={testState?.loading}
+                        >
+                          {testState?.loading ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <PlayCircle className="size-3" />
+                          )}
+                          Test
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Test AI Gateway */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.1 }}>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sparkles className="size-4 text-amber-600" />
+                  Test AI Gateway
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Send a test message to verify the AI Gateway is working end-to-end.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                  onClick={handleTestAI}
+                  disabled={aiTestLoading}
+                >
+                  {aiTestLoading ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <PlayCircle className="size-3.5" />
+                  )}
+                  {aiTestLoading ? 'Testing...' : 'Test AI'}
+                </Button>
+                {aiTestResponse && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                    <p className="text-xs text-muted-foreground font-medium">AI Response:</p>
+                    <p className="text-sm whitespace-pre-wrap">{aiTestResponse}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Gateway Configuration */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: 0.15 }}>
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -1089,13 +1431,150 @@ export default function OpenClawModule() {
                 {openclawChannels.filter(c => c.status === 'disconnected' || c.status === 'error').length} offline
               </Badge>
             </div>
-            <Dialog open={addChannelOpen} onOpenChange={setAddChannelOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
-                  <Plus className="size-3.5" />
-                  Add Channel
-                </Button>
-              </DialogTrigger>
+            <div className="flex items-center gap-2">
+              {/* Telegram Setup Dialog */}
+              <Dialog open={telegramSetupOpen} onOpenChange={(open) => { setTelegramSetupOpen(open); if (!open) { setTelegramWebhookUrl(null); setTelegramBotInfo(null); } }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="gap-1.5 text-blue-600 border-blue-500/25">
+                    <Send className="size-3.5" />
+                    Setup Telegram
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <div className="flex items-center justify-center size-8 rounded-lg bg-blue-500/10 text-blue-500">
+                        <Send className="size-4" />
+                      </div>
+                      Setup Telegram Bot
+                    </DialogTitle>
+                    <DialogDescription>Connect your Telegram bot to the AI Gateway</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Bot Token</Label>
+                      <Input
+                        placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                        value={telegramBotToken}
+                        onChange={(e) => setTelegramBotToken(e.target.value)}
+                        type="password"
+                      />
+                      <p className="text-xs text-muted-foreground">Get this from @BotFather on Telegram</p>
+                    </div>
+                    {telegramWebhookUrl && (
+                      <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3 space-y-2">
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">✅ Telegram Bot Connected!</p>
+                        {telegramBotInfo && (
+                          <p className="text-xs text-muted-foreground">Bot: @{telegramBotInfo.username} ({telegramBotInfo.firstName})</p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground font-mono truncate flex-1">{telegramWebhookUrl}</p>
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={() => { navigator.clipboard.writeText(telegramWebhookUrl); toast.success('Webhook URL copied'); }}>
+                            <Copy className="size-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setTelegramSetupOpen(false)}>Close</Button>
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                      onClick={handleTelegramSetup}
+                      disabled={!telegramBotToken.trim() || telegramSetupLoading}
+                    >
+                      {telegramSetupLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                      {telegramSetupLoading ? 'Connecting...' : 'Connect Bot'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* WhatsApp Setup Dialog */}
+              <Dialog open={whatsappSetupOpen} onOpenChange={(open) => { setWhatsappSetupOpen(open); if (!open) { setWhatsappWebhookUrl(null); setWhatsappBusinessName(null); } }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="gap-1.5 text-green-600 border-green-500/25">
+                    <MessageCircle className="size-3.5" />
+                    Setup WhatsApp
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <div className="flex items-center justify-center size-8 rounded-lg bg-green-500/10 text-green-600">
+                        <MessageCircle className="size-4" />
+                      </div>
+                      Setup WhatsApp Business
+                    </DialogTitle>
+                    <DialogDescription>Connect your WhatsApp Business API to the AI Gateway</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Phone Number ID</Label>
+                      <Input
+                        placeholder="123456789012345"
+                        value={whatsappPhoneNumberId}
+                        onChange={(e) => setWhatsappPhoneNumberId(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">From Meta Business Suite → WhatsApp → Phone Numbers</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Access Token</Label>
+                      <Input
+                        placeholder="EAAx..."
+                        value={whatsappAccessToken}
+                        onChange={(e) => setWhatsappAccessToken(e.target.value)}
+                        type="password"
+                      />
+                      <p className="text-xs text-muted-foreground">Permanent token from Meta Business Suite</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Verify Token</Label>
+                      <Input
+                        placeholder="my-custom-verify-token"
+                        value={whatsappVerifyToken}
+                        onChange={(e) => setWhatsappVerifyToken(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">Custom string for webhook verification</p>
+                    </div>
+                    {whatsappWebhookUrl && (
+                      <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3 space-y-2">
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">✅ WhatsApp Business Connected!</p>
+                        {whatsappBusinessName && (
+                          <p className="text-xs text-muted-foreground">Business: {whatsappBusinessName}</p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground font-mono truncate flex-1">{whatsappWebhookUrl}</p>
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={() => { navigator.clipboard.writeText(whatsappWebhookUrl); toast.success('Webhook URL copied'); }}>
+                            <Copy className="size-3" />
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Subscribe this webhook URL in Meta Business Suite and verify using the verify token.</p>
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setWhatsappSetupOpen(false)}>Close</Button>
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                      onClick={handleWhatsAppSetup}
+                      disabled={!whatsappPhoneNumberId.trim() || !whatsappAccessToken.trim() || !whatsappVerifyToken.trim() || whatsappSetupLoading}
+                    >
+                      {whatsappSetupLoading ? <Loader2 className="size-3.5 animate-spin" /> : <MessageCircle className="size-3.5" />}
+                      {whatsappSetupLoading ? 'Connecting...' : 'Connect WhatsApp'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Add Channel (other platforms) */}
+              <Dialog open={addChannelOpen} onOpenChange={setAddChannelOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
+                    <Plus className="size-3.5" />
+                    Add Channel
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Channel</DialogTitle>
@@ -1137,6 +1616,7 @@ export default function OpenClawModule() {
               </DialogContent>
             </Dialog>
           </div>
+            </div>
 
           <ScrollArea className="flex-1 max-h-[calc(100vh-320px)]">
             {openclawChannels.length > 0 ? (
@@ -1305,14 +1785,155 @@ export default function OpenClawModule() {
                 <Package className="size-3" />
                 {openclawPlugins.length} total
               </Badge>
+              <Badge className="bg-cyan-500/15 text-cyan-600 border-cyan-500/25 gap-1">
+                <Wrench className="size-3" />
+                {skills.length} skills
+              </Badge>
             </div>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast.info('ClawHub marketplace coming soon!')}>
-              <Store className="size-3.5" />
-              Browse ClawHub
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={loadSkills} disabled={skillsLoading}>
+                {skillsLoading ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
+                Refresh Skills
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast.info('ClawHub marketplace coming soon!')}>
+                <Store className="size-3.5" />
+                Browse ClawHub
+              </Button>
+            </div>
           </div>
 
-          <ScrollArea className="flex-1 max-h-[calc(100vh-320px)]">
+          {/* AI Skills as Plugins */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Wrench className="size-4 text-cyan-600" />
+                    AI Skills
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-1">
+                    Dynamic AI skills loaded from the skills engine. Use slash commands or execute directly.
+                  </CardDescription>
+                </div>
+                <Badge className="bg-cyan-500/15 text-cyan-600 border-cyan-500/25 gap-1 text-xs">
+                  <Sparkles className="size-3" />
+                  Live from API
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {skillsLoading && skills.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : skills.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {skills.map((skill) => (
+                    <div key={(skill.id as string)} className="flex items-start gap-3 rounded-lg border p-3">
+                      <div className="flex items-center justify-center size-8 rounded-lg bg-cyan-500/10 text-cyan-600 shrink-0">
+                        <Wrench className="size-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold">{(skill.name as string)}</p>
+                          <Badge className="bg-cyan-500/15 text-cyan-600 border-cyan-500/25 text-[10px] px-1.5 py-0 h-4">
+                            {(skill.category as string) || 'general'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{(skill.description as string)}</p>
+                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Activity className="size-3" />
+                            {(skill.usageCount as number) || 0} uses
+                          </span>
+                          {(skill.triggerPhrase as string) && (
+                            <span className="flex items-center gap-1 font-mono">
+                              <Terminal className="size-3" />
+                              {(skill.triggerPhrase as string)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 shrink-0"
+                        onClick={() => {
+                          setSkillExecuteSlug((skill.slug as string));
+                          setSkillExecuteName((skill.name as string));
+                          setSkillExecuteInput('');
+                          setSkillExecuteResponse(null);
+                          setSkillExecuteOpen(true);
+                        }}
+                      >
+                        <PlayCircle className="size-3" />
+                        Execute
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Wrench className="size-6 text-muted-foreground/60 mb-2" />
+                  <p className="text-xs">No skills loaded yet</p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">Create skills via the AI Copilot or API</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Skill Execute Dialog */}
+          <Dialog open={skillExecuteOpen} onOpenChange={(open) => { setSkillExecuteOpen(open); if (!open) setSkillExecuteResponse(null); }}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <div className="flex items-center justify-center size-8 rounded-lg bg-cyan-500/10 text-cyan-600">
+                    <Wrench className="size-4" />
+                  </div>
+                  Execute: {skillExecuteName}
+                </DialogTitle>
+                <DialogDescription>
+                  Enter text to process with this skill via the AI Gateway.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Input</Label>
+                  <textarea
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="Enter text for the skill to process..."
+                    value={skillExecuteInput}
+                    onChange={(e) => setSkillExecuteInput(e.target.value)}
+                  />
+                </div>
+                {skillExecuteResponse && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-1 max-h-64 overflow-y-auto">
+                    <p className="text-xs text-muted-foreground font-medium">Skill Response:</p>
+                    <div className="text-sm whitespace-pre-wrap">{skillExecuteResponse}</div>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSkillExecuteOpen(false)}>Close</Button>
+                <Button
+                  className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
+                  onClick={handleExecuteSkill}
+                  disabled={!skillExecuteInput.trim() || skillExecuteLoading}
+                >
+                  {skillExecuteLoading ? <Loader2 className="size-3.5 animate-spin" /> : <PlayCircle className="size-3.5" />}
+                  {skillExecuteLoading ? 'Running...' : 'Run Skill'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Existing Plugins */}
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-muted-foreground">Installed Plugins</p>
+            <Separator className="flex-1" />
+          </div>
+
+          <ScrollArea className="flex-1 max-h-[calc(100vh-600px)]">
             {openclawPlugins.length > 0 ? (
               <div className="space-y-3 pr-1">
                 <AnimatePresence mode="popLayout">

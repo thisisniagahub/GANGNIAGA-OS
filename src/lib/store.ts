@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ModuleId, ChatMessage, KPIData, ChartDataPoint, AgentInfo, TaskInfo, WorkflowInfo, MemoryEntry, BusinessPlanData, ReportData, IdeaCanvasData, PlanReviewData, PlanActualData, IntegrationData, VarianceAlert, PitchDeckData, CitationData, OpenClawChannel, OpenClawGateway, OpenClawPlugin, OpenClawDelegate, OpenClawWebhook, OpenClawScheduledTask, OpenClawSession, OpenClawSoulConfig } from './types';
+import type { ModuleId, ChatMessage, KPIData, ChartDataPoint, AgentInfo, TaskInfo, WorkflowInfo, MemoryEntry, BusinessPlanData, ReportData, IdeaCanvasData, PlanReviewData, PlanActualData, IntegrationData, VarianceAlert, PitchDeckData, CitationData, OpenClawChannel, OpenClawGateway, OpenClawPlugin, OpenClawDelegate, OpenClawWebhook, OpenClawScheduledTask, OpenClawSession, OpenClawSoulConfig, CopilotSkill, CopilotMemory } from './types';
 
 interface AppState {
   activeModule: ModuleId;
@@ -15,6 +15,16 @@ interface AppState {
   clearChat: () => void;
   chatLoading: boolean;
   setChatLoading: (loading: boolean) => void;
+
+  // Copilot Skills & Memory
+  copilotSkills: CopilotSkill[];
+  setCopilotSkills: (skills: CopilotSkill[]) => void;
+  copilotMemories: CopilotMemory[];
+  setCopilotMemories: (memories: CopilotMemory[]) => void;
+  voiceRecording: boolean;
+  setVoiceRecording: (recording: boolean) => void;
+  copilotInitialized: boolean;
+  setCopilotInitialized: (initialized: boolean) => void;
 
   // Dashboard
   kpis: KPIData[];
@@ -148,6 +158,16 @@ export const useAppStore = create<AppState>((set) => ({
   clearChat: () => set({ chatMessages: [] }),
   chatLoading: false,
   setChatLoading: (loading) => set({ chatLoading: loading }),
+
+  // Copilot Skills & Memory
+  copilotSkills: [],
+  setCopilotSkills: (skills) => set({ copilotSkills: skills }),
+  copilotMemories: [],
+  setCopilotMemories: (memories) => set({ copilotMemories: memories }),
+  voiceRecording: false,
+  setVoiceRecording: (recording) => set({ voiceRecording: recording }),
+  copilotInitialized: false,
+  setCopilotInitialized: (initialized) => set({ copilotInitialized: initialized }),
 
   // Dashboard KPIs
   kpis: [

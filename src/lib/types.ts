@@ -176,6 +176,35 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  type?: 'text' | 'image' | 'search' | 'skill';
+  imageBase64?: string;
+  searchResults?: SearchResultItem[];
+  skillName?: string;
+  isPlaying?: boolean;
+}
+
+export interface SearchResultItem {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface CopilotSkill {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  category: string;
+  triggerPhrase: string | null;
+  tags: string[];
+}
+
+export interface CopilotMemory {
+  id: string;
+  key: string;
+  content: string;
+  type: string;
+  importance: number;
 }
 
 export interface ForecastData {
