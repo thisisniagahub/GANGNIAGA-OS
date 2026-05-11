@@ -196,18 +196,24 @@ type FunctionResult<T extends FunctionName> = FunctionMap[T]['result'];
 type ProviderType = 'zai' | 'openai' | 'openrouter' | 'none';
 
 function detectProvider(): ProviderType {
-  // Check for ZAI SDK availability first (dev/sandbox mode)
-  if (process.env.ZAI_BASE_URL) {
-    return 'zai';
-  }
+  // On Vercel (serverless), the Z AI Gateway is NOT accessible (internal IP only).
+  // Skip ZAI detection entirely and use external API providers.
+  const isVercel = process.env.VERCEL === '1';
 
-  // Try to check if z-ai-web-dev-sdk is importable
-  // In the sandbox, the SDK is always available and auto-configures
-  try {
-    require.resolve('z-ai-web-dev-sdk');
-    return 'zai';
-  } catch {
-    // SDK not available
+  if (!isVercel) {
+    // Check for ZAI SDK availability (dev/sandbox mode only)
+    if (process.env.ZAI_BASE_URL) {
+      return 'zai';
+    }
+
+    // Try to check if z-ai-web-dev-sdk is importable
+    // In the sandbox, the SDK is always available and auto-configures
+    try {
+      require.resolve('z-ai-web-dev-sdk');
+      return 'zai';
+    } catch {
+      // SDK not available
+    }
   }
 
   // Check for OpenAI-compatible API (production/Vercel mode)
