@@ -4,7 +4,7 @@
 
 ---
 
-## Current State: v0.2.0 (Foundation)
+## Current State: v0.3.0 (Intelligence & Gateway)
 
 ### ✅ What's Built
 
@@ -24,25 +24,59 @@
 | Plan vs Actuals | ✅ Complete | Variance tracking, 3 alert levels, QB/Xero integration stub |
 | AI Copilot | ✅ Complete | Context-aware chat, business intelligence |
 | Settings | ✅ Complete | Organization config, integration management |
+| OpenClaw Multi-Channel Gateway | ✅ Complete | WhatsApp, Telegram, Discord, WebChat, Signal, Slack — webhook integration |
+| Skills System | ✅ Complete | 30+ built-in skills, auto-learn, execution engine |
+| Multi-Provider AI Adapter | ✅ Complete | ZAI/OpenAI/OpenRouter with round-robin key rotation |
+| Real Messaging Gateway | ✅ Complete | Telegram/WhatsApp webhook integration, conversation persistence |
+| Supabase PostgreSQL Integration | ✅ Complete | Dual-database pattern (SQLite local + Supabase production), 27 tables |
+| AI Vision, ASR, TTS, Image Gen | ✅ Complete | Full multimodal AI routes via multi-provider adapter |
+| SOUL.md AI Personality System | ✅ Complete | Configurable AI personality and behavior definitions |
+| Gateway Conversation Persistence | ✅ Complete | Conversations from messaging channels stored in database |
+| OpenClaw Plugin & Delegate System | ✅ Complete | Plugin architecture for extending gateway capabilities |
+
+### 📊 Project Scale
+
+| Metric | Count |
+|--------|-------|
+| API Routes | 41 |
+| Prisma Models | 27 |
+| Modules | 15 |
+| Built-in Skills | 30+ |
+| AI Providers | 3 (ZAI, OpenAI, OpenRouter) |
+| Messaging Channels | 6 (WhatsApp, Telegram, Discord, WebChat, Signal, Slack) |
 
 ### ⚠️ Known Limitations
 
 - **No real authentication** — Single-user mode, no login/signup
-- **No data persistence** — All data in Zustand (client-side mock), DB schema exists but not fully connected
-- **No real API integrations** — QuickBooks/Xero are stubs, not connected
-- **No multi-tenancy** — Single organization assumption
 - **No PPTX/PDF export** — Pitch deck and reports are view-only
 - **No WebSocket real-time** — Agent status is simulated, not live
 - **No vector search** — Memory is text-based, no semantic retrieval
 - **No automated testing** — Zero test coverage
+- **OpenClaw gateway channels are configured but messaging is API-only** — No persistent bot connections (channels respond via webhook, not long-lived bot sessions)
+- **No real API integrations** — QuickBooks/Xero are stubs, not connected
+- **No multi-tenancy** — Single organization assumption
 
 ---
 
-## Phase 1: Production Readiness (v0.3.0) — Q2 2025
+## Phase 1: Production Readiness (v0.3.x) — Q2 2025
 
 > **Goal**: Make the platform usable by real users with real data
 
-### 🔐 Authentication & Authorization
+### ✅ Already Completed
+
+| Task | Status |
+|------|--------|
+| Supabase PostgreSQL integration (dual-database pattern) | ✅ Done |
+| AI Provider abstraction (ZAI/OpenAI/OpenRouter multi-provider) | ✅ Done |
+| Skills system (30+ built-in skills, auto-learn, execution engine) | ✅ Done |
+| OpenClaw Multi-Channel Gateway | ✅ Done |
+| Messaging Gateway (Telegram/WhatsApp webhook) | ✅ Done |
+| Gateway Conversation Persistence | ✅ Done |
+| AI Vision, ASR, TTS, Image Gen routes | ✅ Done |
+| SOUL.md AI Personality System | ✅ Done |
+| Partial data persistence via Supabase | ✅ Done |
+
+### 🔐 Authentication & Authorization (Still Needed)
 | Task | Priority | Effort |
 |------|----------|--------|
 | NextAuth.js v4 setup with email/password | P0 | 2 days |
@@ -51,17 +85,15 @@
 | Session management & token refresh | P0 | 1 day |
 | Invite system for team members | P1 | 2 days |
 
-### 💾 Data Persistence
+### 💾 Data Persistence (Remaining Work)
 | Task | Priority | Effort |
 |------|----------|--------|
-| Connect Zustand → Prisma API for all CRUD | P0 | 5 days |
-| Business Plan save/load from SQLite | P0 | 2 days |
-| Financial assumptions persistence | P0 | 1 day |
+| Connect remaining Zustand stores → Supabase API for all CRUD | P0 | 3 days |
+| Business Plan save/load via Supabase | P0 | 1 day |
+| Financial assumptions persistence | P1 | 1 day |
 | Idea Canvas save with validation reports | P1 | 1 day |
 | Plan Review history storage | P1 | 1 day |
 | Pitch Deck save with slide data | P1 | 1 day |
-| Agent session & task logging to DB | P1 | 2 days |
-| Memory entries persistence | P2 | 1 day |
 
 ### 📄 Export & Download
 | Task | Priority | Effort |
@@ -82,11 +114,13 @@
 | Undo/redo for section editing | P2 | 2 days |
 | Auto-save with conflict resolution | P1 | 2 days |
 
-### Success Metrics (v0.3.0)
+### Success Metrics (v0.3.x)
 - [ ] User can sign up, log in, and persist data across sessions
-- [ ] All 14 modules save and load from database
+- [ ] All 15 modules save and load from Supabase
 - [ ] PDF/PPTX export works for at least 3 document types
 - [ ] Zero data loss on page refresh
+- [x] AI providers work via OpenRouter/OpenAI on Vercel
+- [x] Messaging gateway receives and processes webhooks
 
 ---
 
@@ -102,6 +136,7 @@
 | Autonomous workflow triggers (agent decides when to run) | P1 | 3 days |
 | Agent progress streaming (real-time task updates) | P1 | 2 days |
 | Custom agent creation (user defines agent config) | P2 | 3 days |
+| AI Provider streaming support | P0 | 3 days |
 
 ### 🔍 Semantic Memory & Search
 | Task | Priority | Effort |
@@ -130,11 +165,22 @@
 | Government data source integration (DOSM, BNM, SME Corp) | P1 | 3 days |
 | 50+ verified source library | P2 | 3 days |
 
+### 🤖 OpenClaw Persistent Bot Connections
+| Task | Priority | Effort |
+|------|----------|--------|
+| Persistent Telegram bot connection (long-lived polling/webhook) | P0 | 2 days |
+| Persistent WhatsApp Business API connection | P0 | 3 days |
+| Discord bot with presence and real-time events | P1 | 2 days |
+| Slack bot with Socket Mode | P1 | 2 days |
+| Signal bot integration | P2 | 3 days |
+
 ### Success Metrics (v0.4.0)
 - [ ] Agents can chain tasks autonomously without user intervention
 - [ ] Memory search returns semantically relevant results
 - [ ] Financial model changes propagate to all related views
 - [ ] Research agent provides 20+ verified citations per plan
+- [ ] OpenClaw channels maintain persistent bot connections
+- [ ] AI provider supports streaming responses
 
 ---
 
@@ -210,7 +256,7 @@
 ### 📱 Mobile Responsiveness
 | Task | Priority | Effort |
 |------|----------|--------|
-| Mobile-optimized layouts for all 14 modules | P0 | 5 days |
+| Mobile-optimized layouts for all 15 modules | P0 | 5 days |
 | Touch-friendly interactions | P1 | 2 days |
 | PWA support (offline mode) | P2 | 3 days |
 | Mobile navigation redesign | P1 | 2 days |
@@ -257,8 +303,7 @@
 ### 📈 Platform & Infrastructure
 | Task | Priority | Effort |
 |------|----------|--------|
-| PostgreSQL migration (from SQLite) | P0 | 5 days |
-| pgvector for semantic search | P0 | 3 days |
+| pgvector for semantic search (on Supabase) | P0 | 3 days |
 | Redis caching layer | P1 | 3 days |
 | CDN for static assets | P1 | 2 days |
 | Auto-scaling infrastructure | P1 | 5 days |
@@ -329,11 +374,13 @@
 
 | Item | Impact | Phase to Address |
 |------|--------|-----------------|
-| Zustand mock data → real DB persistence | Data loss on refresh | Phase 1 |
+| Zustand mock data → real DB persistence (partially done via Supabase) | Some data loss on refresh | Phase 1 |
 | Chart colors duplicated across modules | Inconsistent theming | Phase 1 |
 | No error boundaries in modules | Full page crash on error | Phase 1 |
 | No automated tests | Regression risk | Phase 1 |
-| SQLite → PostgreSQL migration | Scalability limit | Phase 5 |
+| OpenClaw channels need persistent bot connections | Channels are API/webhook-only, no long-lived sessions | Phase 2 |
+| Skills system needs more documentation | Undocumented capabilities, hard to extend | Phase 2 |
+| AI Provider needs streaming support | No real-time token streaming, blocking responses | Phase 2 |
 | No rate limiting on AI API calls | Cost runaway risk | Phase 2 |
 | Agent status is simulated | No real task execution | Phase 3 |
 | No content versioning | No undo/audit on plans | Phase 4 |
@@ -342,13 +389,14 @@
 
 | Risk | Probability | Impact | Mitigation |
 |------|------------|--------|-----------|
-| AI API costs exceed budget | Medium | High | Rate limiting, caching, token budgets |
-| SQLite performance ceiling | High | Medium | PostgreSQL migration planned Phase 5 |
+| AI API costs exceed budget | Medium | High | Rate limiting, caching, token budgets, round-robin keys |
+| Supabase free tier limits reached | Medium | Medium | Monitor usage, upgrade to Pro when needed |
 | User adoption below targets | Medium | High | Free tier, onboarding optimization |
 | Competitive pressure from LivePlan/Notion | Medium | Medium | AI differentiation, ASEAN focus |
 | Data security breach | Low | Critical | SOC 2, encryption, penetration testing |
 | AI regulation changes | Medium | Medium | Compliance monitoring, modular AI layer |
+| OpenRouter/OpenAI API changes | Medium | Medium | Multi-provider adapter, fallback routing |
 
 ---
 
-*Last updated: January 2025 | Version: v0.2.0*
+*Last updated: March 2025 | Version: v0.3.0*

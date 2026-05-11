@@ -17,26 +17,47 @@
 
 ### Environment Variables
 ```env
-# Database
+# Database (PRIMARY — Supabase PostgreSQL)
+NEXT_PUBLIC_SUPABASE_URL=https://psefokmrwtsftdberqtt.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+
+# Database (FALLBACK — SQLite, local dev only)
 DATABASE_URL="file:./db/custom.db"
 
-# AI SDK (Required for all AI features)
-ZAI_API_KEY=your_zai_api_key_here
+# AI — OpenRouter (PRIMARY for Vercel)
+OPENROUTER_API_KEY_1=sk-or-v1-...
+OPENROUTER_API_KEY_2=  # Optional, for round-robin
+OPENROUTER_API_KEY_3=  # Optional
+OPENROUTER_API_KEY_4=  # Optional
+OPENROUTER_MODEL=openrouter/owl-alpha
+OPENROUTER_APP_NAME=GangNiaga AI OS
+OPENROUTER_APP_URL=https://your-app.vercel.app
 
-# Authentication (Phase 1)
-NEXTAUTH_SECRET=your_nextauth_secret
-NEXTAUTH_URL=https://your-domain.com
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
+# AI — OpenAI (Alternative for Vercel)
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=  # Optional custom endpoint
+OPENAI_CHAT_MODEL=gpt-4o
+OPENAI_IMAGE_MODEL=dall-e-3
+OPENAI_TTS_MODEL=tts-1
+OPENAI_ASR_MODEL=whisper-1
 
-# Integrations (Phase 3)
-QUICKBOOKS_CLIENT_ID=your_qb_client_id
-QUICKBOOKS_CLIENT_SECRET=your_qb_client_secret
-XERO_CLIENT_ID=your_xero_client_id
-XERO_CLIENT_SECRET=your_xero_client_secret
+# AI — Z AI Gateway (Internal/sandbox only, NOT accessible from Vercel)
+ZAI_BASE_URL=http://172.25.136.193:8080/v1
+ZAI_API_KEY=  # Auto-configured in sandbox
 
-# Optional
-NEXT_PUBLIC_APP_URL=https://your-domain.com
+# Auth
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Messaging Gateway
+TELEGRAM_BOT_TOKEN=
+# WhatsApp configured via API
+
+# App
+NEXT_PUBLIC_APP_URL=
 NEXT_PUBLIC_APP_NAME=GangNiaga AI OS
 ```
 
@@ -47,7 +68,7 @@ NEXT_PUBLIC_APP_NAME=GangNiaga AI OS
 ### Quick Start
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/gangniaga-ai-os.git
+git clone https://github.com/thisisniagahub/GANGNIAGA-OS.git
 cd gangniaga-ai-os
 
 # Install dependencies
@@ -92,93 +113,36 @@ Vercel is the creator of Next.js and provides the most seamless deployment exper
 |-------------|---------|
 | **GitHub account** | Your repo must be hosted on GitHub |
 | **Vercel account** | Sign up at [vercel.com](https://vercel.com) — free tier works |
-| **PostgreSQL database** | Required (SQLite does NOT work on Vercel — no persistent file system) |
+| **Supabase project** | Already configured — PostgreSQL database is set up |
+
+> ✅ **Supabase PostgreSQL is ALREADY SET UP.** No need to create a new database. The project URL is `https://psefokmrwtsftdberqtt.supabase.co` with 27 tables and seed data.
 
 ---
 
-#### Step 1: Set Up PostgreSQL Database
-
-Since Vercel's serverless environment has no persistent file system, you **must** use PostgreSQL instead of SQLite. Choose one of these options:
-
-| Option | Provider | Free Tier | Setup Difficulty |
-|--------|----------|-----------|------------------|
-| **A** | Vercel Postgres | ✅ 256MB storage | 🟢 Easiest — one click |
-| **B** | [Neon](https://neon.tech) | ✅ 0.5GB storage | 🟢 Easy |
-| **C** | [Supabase](https://supabase.com) | ✅ 500MB storage | 🟢 Easy |
-
-**Option A: Vercel Postgres (Easiest)**
-1. Go to your Vercel dashboard → **Storage** → **Create Database** → **Postgres**
-2. Select the free plan and connect it to your project
-3. The `DATABASE_URL` environment variable is **automatically set** — skip to Step 3
-
-**Option B: Neon**
-1. Sign up at [neon.tech](https://neon.tech)
-2. Create a new project and database
-3. Copy the connection string from the dashboard — it looks like:
-   ```
-   postgresql://username:password@ep-xxx-xxx-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
-   ```
-
-**Option C: Supabase**
-1. Sign up at [supabase.com](https://supabase.com)
-2. Create a new project
-3. Go to **Settings** → **Database** → copy the connection string (URI format)
-   ```
-   postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
-   ```
-
-> 💡 **Save your `postgresql://` connection string** — you'll need it in Step 4.
-
----
-
-#### Step 2: Update Prisma Schema for PostgreSQL
-
-Before deploying, you must change the database provider from SQLite to PostgreSQL:
-
-1. Open `prisma/schema.prisma`
-2. Change the `provider` line:
-
-```diff
-datasource db {
--  provider = "sqlite"
-+  provider = "postgresql"
-   url      = env("DATABASE_URL")
-}
-```
-
-3. Commit this change to your repository:
-```bash
-git add prisma/schema.prisma
-git commit -m "chore: switch Prisma provider to PostgreSQL for Vercel deployment"
-git push origin main
-```
-
-> ⚠️ **Important**: This change is required for Vercel. SQLite will not work on Vercel because serverless functions have no persistent file system.
-
----
-
-#### Step 3: Connect GitHub Repo to Vercel
+#### Step 1: Connect GitHub Repo to Vercel
 
 1. Go to [vercel.com/new](https://vercel.com/new)
 2. Click **"Import Git Repository"**
-3. Select your GitHub repository (if it doesn't appear, click **"Adjust GitHub App Permissions"**)
+3. Select the GitHub repository: **`thisisniagahub/GANGNIAGA-OS`**
+   - If it doesn't appear, click **"Adjust GitHub App Permissions"**
 4. Configure the project:
 
 | Setting | Value |
 |---------|-------|
 | **Framework Preset** | Next.js (auto-detected) |
 | **Root Directory** | `./` (default) |
-| **Build Command** | `bun run vercel-build` |
+| **Build Command** | `prisma generate && next build` (configured in `vercel.json`) |
 | **Install Command** | `bun install` |
 | **Output Directory** | `.next` (default) |
+| **Region** | Singapore (sin1) — configured in `vercel.json` |
 
-5. **Region**: Select **Singapore (sin1)** for ASEAN users, or the closest region to your target audience
+> 💡 The `vercel.json` is already configured with the correct buildCommand (`prisma generate && next build`) and region (`sin1`). No manual build command override needed.
 
-> 💡 The `vercel-build` script (defined in `package.json`) runs `prisma generate && prisma db push && next build` to ensure your database schema is synchronized before the app starts.
+> ⚠️ **Important**: The Prisma schema uses `provider = "sqlite"` for local development. In production (Vercel), the app uses the **Supabase REST API** as the primary database, NOT Prisma with PostgreSQL directly. This dual-database pattern allows local SQLite development while using Supabase in production.
 
 ---
 
-#### Step 4: Set Environment Variables in Vercel
+#### Step 2: Set Environment Variables in Vercel
 
 Before clicking "Deploy", add all required environment variables in the Vercel project settings:
 
@@ -186,18 +150,39 @@ Before clicking "Deploy", add all required environment variables in the Vercel p
 
 | Variable | Value | How to Get It |
 |----------|-------|---------------|
-| `DATABASE_URL` | `postgresql://user:pass@host:5432/db` | From Step 1 (auto-set if using Vercel Postgres) |
-| `ZAI_API_KEY` | Your AI API key | From your AI provider dashboard |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://psefokmrwtsftdberqtt.supabase.co` | Already configured in Supabase project |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGci...` | Supabase Dashboard → Settings → API → service_role key |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGci...` | Supabase Dashboard → Settings → API → anon/public key |
+| `DATABASE_URL` | `file:./db/custom.db` | Keep as-is for Prisma client generation |
+| `OPENROUTER_API_KEY_1` | `sk-or-v1-...` | From [openrouter.ai](https://openrouter.ai) → Keys |
 | `NEXTAUTH_SECRET` | Random base64 string | Generate with: `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | `https://your-app.vercel.app` | Your Vercel deployment URL |
+
+**AI Provider Variables:**
+
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `OPENROUTER_API_KEY_1` | Primary OpenRouter key (PRIMARY AI provider for Vercel) | ✅ Yes |
+| `OPENROUTER_API_KEY_2` | Round-robin key #2 | No |
+| `OPENROUTER_API_KEY_3` | Round-robin key #3 | No |
+| `OPENROUTER_API_KEY_4` | Round-robin key #4 | No |
+| `OPENROUTER_MODEL` | Model to use (default: `openrouter/owl-alpha`) | No |
+| `OPENROUTER_APP_NAME` | App name for OpenRouter (default: `GangNiaga AI OS`) | No |
+| `OPENROUTER_APP_URL` | Your app URL for OpenRouter ranking | No |
+| `OPENAI_API_KEY` | OpenAI key (alternative provider) | No |
+| `OPENAI_BASE_URL` | Custom OpenAI endpoint | No |
+| `OPENAI_CHAT_MODEL` | Chat model (default: `gpt-4o`) | No |
+| `OPENAI_IMAGE_MODEL` | Image generation model (default: `dall-e-3`) | No |
+| `OPENAI_TTS_MODEL` | Text-to-speech model (default: `tts-1`) | No |
+| `OPENAI_ASR_MODEL` | Speech-to-text model (default: `whisper-1`) | No |
+
+> ⚠️ **Do NOT set `ZAI_BASE_URL` or `ZAI_API_KEY` on Vercel.** The Z AI Gateway (`http://172.25.136.193:8080/v1`) is an internal/sandbox-only service and is NOT accessible from Vercel's serverless functions. Use OpenRouter (primary) or OpenAI (alternative) for production AI.
 
 **Optional Variables:**
 
 | Variable | Purpose |
 |----------|---------|
 | `TELEGRAM_BOT_TOKEN` | OpenClaw Telegram channel integration |
-| `DISCORD_BOT_TOKEN` | OpenClaw Discord channel integration |
-| `SLACK_BOT_TOKEN` | OpenClaw Slack channel integration |
 | `GOOGLE_CLIENT_ID` | Google OAuth sign-in |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth sign-in |
 | `NEXT_PUBLIC_APP_URL` | Public app URL for SEO/metadata |
@@ -212,14 +197,13 @@ To add variables:
 
 ---
 
-#### Step 5: Deploy
+#### Step 3: Deploy
 
 1. Click **"Deploy"** in the Vercel dashboard
 2. Wait for the build to complete (typically 2–4 minutes on first deploy)
 3. The build process will:
    - Run `bun install` to install dependencies
    - Run `prisma generate` to generate the Prisma client
-   - Run `prisma db push` to sync the database schema
    - Run `next build` to build the Next.js application
 4. Once complete, you'll see a 🎉 success screen with your deployment URL
 
@@ -227,34 +211,16 @@ To add variables:
 
 ---
 
-#### Step 6: Set Up Vercel Postgres (If Using Option A from Step 1)
-
-If you didn't set up Vercel Postgres during Step 1, you can do it now:
-
-1. Go to **Vercel Dashboard** → Your Project → **Storage** tab
-2. Click **"Create Database"** → Select **"Postgres"**
-3. Choose the free **Hobby** plan
-4. Click **"Create & Connect"**
-5. Select your project and connect it
-6. The `DATABASE_URL` environment variable is **automatically injected** — no manual setup needed
-7. Redeploy the project for the variable to take effect:
-   ```bash
-   # Via Vercel CLI
-   vercel --prod
-   # Or trigger a redeploy from the Vercel dashboard → Deployments → ⋯ → Redeploy
-   ```
-
----
-
-#### Post-Deployment Verification
+#### Step 4: Post-Deployment Verification
 
 After your first successful deploy, verify everything is working:
 
 1. **App loads** — Visit your Vercel URL (e.g., `https://gangniaga-ai-os.vercel.app`)
-2. **Dashboard API** — Test: `https://your-app.vercel.app/api/dashboard` (should return JSON)
-3. **OpenClaw Gateway** — Test: `https://your-app.vercel.app/api/openclaw/gateway` (should return gateway status)
-4. **Database connectivity** — If the dashboard API returns data, your database connection is working
-5. **Custom domain** (optional) — Set up at **Vercel Dashboard → Your Project → Settings → Domains**
+2. **AI Provider Status** — Test: `https://your-app.vercel.app/api/ai/status` (should return AI provider availability)
+3. **Messaging Gateway Status** — Test: `https://your-app.vercel.app/api/gateway/status` (should return gateway channel status)
+4. **OpenClaw Gateway** — Test: `https://your-app.vercel.app/api/openclaw/gateway` (should return gateway status)
+5. **Database connectivity** — If the dashboard API returns data, your Supabase connection is working
+6. **Custom domain** (optional) — Set up at **Vercel Dashboard → Your Project → Settings → Domains**
 
 ---
 
@@ -273,9 +239,9 @@ Vercel automatically integrates with GitHub for continuous deployment:
 
 For more control over deployments (e.g., staging → production workflow), set up these GitHub repository secrets:
 
-| Secret | How to Get It |
-|--------|---------------|
-| `VERCEL_TOKEN` | Vercel Dashboard → Settings → Tokens → Create Token |
+| Secret | Value |
+|--------|-------|
+| `VERCEL_TOKEN` | `<your-vercel-token>` |
 | `VERCEL_ORG_ID` | Run `vercel link` and check `.vercel/project.json` |
 | `VERCEL_PROJECT_ID` | Run `vercel link` and check `.vercel/project.json` |
 
@@ -309,12 +275,12 @@ jobs:
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| **Build fails with Prisma errors** | Prisma Client not generated | Ensure `postinstall` script in `package.json` runs `prisma generate`. The `vercel-build` script should include it. |
-| **SQLite errors on deploy** | SQLite not supported on Vercel | You MUST switch to PostgreSQL (see Step 2). Vercel's serverless functions have no persistent file system. |
+| **Build fails with Prisma errors** | Prisma Client not generated | Ensure `vercel.json` buildCommand includes `prisma generate`. |
 | **`DATABASE_URL` not found** | Missing environment variable | Go to Vercel Dashboard → Your Project → Settings → Environment Variables → add `DATABASE_URL` |
+| **Supabase connection fails** | Missing or wrong keys | Verify `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set correctly. |
+| **AI responses fail** | Missing OpenRouter/OpenAI keys | Ensure `OPENROUTER_API_KEY_1` is set. Do NOT rely on ZAI Gateway from Vercel. |
 | **Environment variable errors** | Vars not set or typo | Check Vercel Dashboard → Settings → Environment Variables. Ensure all required vars are set for Production environment. |
-| **504 Gateway Timeout** | Long-running API calls | Add `"maxDuration": 60` to `vercel.json` for routes that need more time. Free tier max is 10s; Pro max is 60s. |
-| **`prisma db push` fails** | Bad connection string or DB not reachable | Verify your `DATABASE_URL` is correct and the database is accessible from Vercel's servers. Check SSL mode. |
+| **504 Gateway Timeout** | Long-running AI API calls | Add `"maxDuration": 60` to `vercel.json` for routes that need more time. Free tier max is 10s; Pro max is 60s. |
 | **Build succeeds but page shows 500** | Runtime error (missing env var, DB issue) | Check Vercel Function Logs: Dashboard → Your Project → Deployments → Function Logs |
 | **CSS/styling broken** | Tailwind CSS not built | Ensure `next build` completes without errors. Check that `tailwind.config.ts` includes all component paths. |
 | **API routes return 404** | Route not deployed | Ensure API files are in `src/app/api/` directory. Check Vercel build logs for any compilation errors. |
@@ -382,22 +348,13 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=file:./db/custom.db
-      - ZAI_API_KEY=${ZAI_API_KEY}
+      - NEXT_PUBLIC_SUPABASE_URL=https://psefokmrwtsftdberqtt.supabase.co
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - OPENROUTER_API_KEY_1=${OPENROUTER_API_KEY_1}
     volumes:
       - ./db:/app/db
     restart: unless-stopped
-
-  # Future: PostgreSQL for production
-  # postgres:
-  #   image: postgres:16-alpine
-  #   environment:
-  #     POSTGRES_DB: gangniaga
-  #     POSTGRES_USER: gangniaga
-  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
-  #   volumes:
-  #     - pgdata:/var/lib/postgresql/data
-  #   ports:
-  #     - "5432:5432"
 ```
 
 ```bash
@@ -418,7 +375,7 @@ sudo apt update && sudo apt upgrade -y
 curl -fsSL https://bun.sh/install | bash
 
 # Clone and setup
-git clone https://github.com/your-org/gangniaga-ai-os.git
+git clone https://github.com/thisisniagahub/GANGNIAGA-OS.git
 cd gangniaga-ai-os
 bun install
 bun run db:push
@@ -485,7 +442,16 @@ The project includes a Caddyfile for the built-in gateway:
 
 ## Database Management
 
-### SQLite (Current)
+### Dual-Database Pattern
+
+GangNiaga AI OS uses a dual-database pattern:
+
+| Environment | Database | Access Method |
+|-------------|----------|---------------|
+| **Local Dev** | SQLite (`file:./db/custom.db`) | Prisma Client directly |
+| **Production (Vercel)** | Supabase PostgreSQL | Supabase REST API (dual-client) |
+
+### SQLite (Local Development)
 ```bash
 # Push schema changes
 bun run db:push
@@ -497,25 +463,21 @@ bun run db:reset
 bunx prisma studio
 ```
 
-### PostgreSQL Migration (Phase 5)
-```bash
-# 1. Update prisma/schema.prisma
-#    datasource db {
-#      provider = "postgresql"
-#      url      = env("DATABASE_URL")
-#    }
+### Supabase PostgreSQL (Production)
+- **Project URL**: `https://psefokmrwtsftdberqtt.supabase.co`
+- **Tables**: 27 tables with seed data
+- **Dual-client pattern**:
+  - **Server-side**: `supabase-server.ts` — uses `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS)
+  - **Client-side**: `supabase-client.ts` — uses `NEXT_PUBLIC_SUPABASE_ANON_KEY` (respects RLS)
 
-# 2. Set new DATABASE_URL
-export DATABASE_URL="postgresql://user:password@localhost:5432/gangniaga"
+### Supabase Dashboard
+1. Go to [supabase.com](https://supabase.com) → Your Project
+2. **Table Editor** — View and edit all 27 tables
+3. **SQL Editor** — Run custom SQL queries
+4. **Authentication** — Manage users (when auth is implemented)
+5. **Settings → API** — Find your project URL and API keys
 
-# 3. Run migration
-bunx prisma migrate dev --name init-postgresql
-
-# 4. Migrate data from SQLite
-bunx prisma db seed
-```
-
-### pgvector Setup (Phase 5)
+### pgvector Setup (Future)
 ```sql
 -- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -548,6 +510,12 @@ docker-compose logs -f app
 # Basic health check
 curl -f http://localhost:3000/api || exit 1
 
+# AI provider status
+curl -f http://localhost:3000/api/ai/status || exit 1
+
+# Messaging gateway status
+curl -f http://localhost:3000/api/gateway/status || exit 1
+
 # Database connectivity
 curl -f http://localhost:3000/api/dashboard || exit 1
 ```
@@ -570,6 +538,7 @@ curl -f http://localhost:3000/api/dashboard || exit 1
 - [ ] Database file is not in git
 - [ ] CORS headers configured properly
 - [ ] Rate limiting enabled on API routes
+- [ ] Supabase service role key is kept secret (server-side only)
 
 ### Post-Deployment
 - [ ] HTTPS enabled (automatic with Vercel/Caddy)
@@ -579,6 +548,7 @@ curl -f http://localhost:3000/api/dashboard || exit 1
 - [ ] SQL injection protection (Prisma parameterized queries)
 - [ ] XSS protection (React auto-escaping + CSP headers)
 - [ ] CSRF protection (SameSite cookies)
+- [ ] Supabase RLS policies configured for production
 
 ### Security Headers (next.config.ts)
 ```typescript
@@ -600,39 +570,42 @@ const securityHeaders = [
 
 ### Database Backup
 ```bash
-# SQLite backup
+# SQLite backup (local dev)
 cp db/custom.db backups/custom-$(date +%Y%m%d).db
 
 # Automated daily backup (crontab)
 0 2 * * * cp /home/z/my-project/db/custom.db /backups/custom-$(date +\%Y\%m\%d).db
 ```
 
-### PostgreSQL Backup (Phase 5)
+### Supabase Backup
 ```bash
-# Full backup
-pg_dump -U gangniaga -d gangniaga > backup-$(date +%Y%m%d).sql
+# Supabase provides automatic daily backups on paid plans
+# For manual backup via pg_dump:
+pg_dump -U postgres -h aws-0-[region].pooler.supabase.com -d postgres > backup-$(date +%Y%m%d).sql
 
 # Restore
-psql -U gangniaga -d gangniaga < backup-20250101.sql
+psql -U postgres -h aws-0-[region].pooler.supabase.com -d postgres < backup-20250101.sql
 ```
+
+> 💡 Supabase free tier includes automatic daily backups retained for 7 days.
 
 ---
 
 ## Scaling Considerations
 
-### Current Limits (SQLite)
-- **Concurrent writes**: 1 at a time
-- **Database size**: ~140TB theoretical, practical limit ~1GB
-- **Connections**: Single file lock
-- **Recommended users**: < 10 concurrent
+### Current Architecture
+| Environment | Database | AI Provider | Limits |
+|-------------|----------|-------------|--------|
+| **Sandbox** | SQLite + Supabase | Z AI Gateway (internal) | Single user, no external access |
+| **Vercel** | Supabase PostgreSQL | OpenRouter / OpenAI | Serverless, auto-scaling |
 
 ### Scaling Path
-| Users | Database | Infrastructure |
-|-------|----------|---------------|
-| 1-10 | SQLite | Single VPS |
-| 10-100 | PostgreSQL | 2 VPS (app + DB) |
-| 100-1000 | PostgreSQL + Redis | Kubernetes |
-| 1000+ | PostgreSQL + Redis + CDN | Multi-region |
+| Users | Database | AI Provider | Infrastructure |
+|-------|----------|-------------|---------------|
+| 1-10 | Supabase Free | OpenRouter | Vercel Free |
+| 10-100 | Supabase Pro | OpenRouter + caching | Vercel Pro |
+| 100-1000 | Supabase Pro + Redis | Multi-provider + queue | Vercel Pro + Edge |
+| 1000+ | Dedicated PostgreSQL | Custom AI infra | Multi-region |
 
 ---
 
@@ -645,7 +618,9 @@ psql -U gangniaga -d gangniaga < backup-20250101.sql
 | `Module not found` | Missing dependencies | `bun install` |
 | `Prisma Client not generated` | Missing client | `bun run db:generate` |
 | Port 3000 in use | Another process | `lsof -ti:3000 \| xargs kill` |
-| AI responses fail | Missing `ZAI_API_KEY` | Set environment variable |
+| AI responses fail (local) | Missing `ZAI_API_KEY` | Z AI Gateway auto-configured in sandbox |
+| AI responses fail (Vercel) | Missing `OPENROUTER_API_KEY_1` | Set OpenRouter key in Vercel env vars |
+| Supabase connection fails | Missing or wrong keys | Verify all 3 Supabase env vars are set |
 | Database locked | SQLite concurrent writes | Restart dev server |
 | Build fails | TypeScript errors | `bun run lint` to identify |
 
@@ -657,8 +632,11 @@ pm2 restart gangniaga
 # Rollback deployment
 vercel --prod --yes
 
-# Database restore
+# Database restore (SQLite)
 cp backups/custom-20250101.db db/custom.db
+
+# Redeploy from Vercel dashboard
+# Vercel Dashboard → Deployments → ⋯ → Redeploy
 ```
 
 ---

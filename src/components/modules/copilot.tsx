@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import {
   X, Send, Bot, User, Sparkles, Loader2, Trash2, Mic, MicOff,
   Volume2, VolumeX, ImagePlus, Search, Zap, Brain, ChevronRight,
-  ExternalLink
+  ExternalLink, Copy, Check, Play, FileCode2, FolderTree,
+  GitBranch, Database, Rocket, Code2, Wrench, Eye, Download,
+  ChevronDown, ChevronUp, RefreshCw, MessageSquare, Terminal,
+  BarChart3, Lightbulb, Shield, Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -26,6 +29,385 @@ function parseSlashCommand(input: string): { type: string; args: string } | null
 // ── Audio Context for TTS ──
 let currentAudio: HTMLAudioElement | null = null;
 
+// ── Slash Command Definitions ──
+interface SlashCommand {
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  { slug: 'edit', name: 'Edit File', description: 'Edit a project file using AI', category: 'code', icon: <FileCode2 className="h-3 w-3" />, color: 'emerald' },
+  { slug: 'code', name: 'Generate Code', description: 'Generate code from description', category: 'code', icon: <Code2 className="h-3 w-3" />, color: 'emerald' },
+  { slug: 'analyze', name: 'Analyze Code', description: 'Analyze a file for issues', category: 'code', icon: <Eye className="h-3 w-3" />, color: 'emerald' },
+  { slug: 'fix', name: 'Fix Bug', description: 'AI-powered bug fixing', category: 'code', icon: <Wrench className="h-3 w-3" />, color: 'amber' },
+  { slug: 'deploy', name: 'Deploy', description: 'Deploy the project', category: 'ops', icon: <Rocket className="h-3 w-3" />, color: 'rose' },
+  { slug: 'git', name: 'Git Operations', description: 'Run git operations', category: 'ops', icon: <GitBranch className="h-3 w-3" />, color: 'orange' },
+  { slug: 'db', name: 'Database', description: 'Database operations', category: 'ops', icon: <Database className="h-3 w-3" />, color: 'violet' },
+  { slug: 'search', name: 'Web Search', description: 'Search the web for information', category: 'ai', icon: <Search className="h-3 w-3" />, color: 'cyan' },
+  { slug: 'image', name: 'Image Generation', description: 'Generate an image from text prompt', category: 'ai', icon: <ImagePlus className="h-3 w-3" />, color: 'violet' },
+  { slug: 'read', name: 'Read URL', description: 'Read web page content', category: 'ai', icon: <ExternalLink className="h-3 w-3" />, color: 'cyan' },
+  { slug: 'vision', name: 'Vision', description: 'Analyze uploaded image', category: 'ai', icon: <Eye className="h-3 w-3" />, color: 'purple' },
+  { slug: 'voice', name: 'Voice Input', description: 'Voice recording input', category: 'media', icon: <Mic className="h-3 w-3" />, color: 'red' },
+  { slug: 'tts', name: 'Text to Speech', description: 'Convert text to speech', category: 'media', icon: <Volume2 className="h-3 w-3" />, color: 'red' },
+  { slug: 'skills', name: 'List Skills', description: 'List all available skills', category: 'system', icon: <Zap className="h-3 w-3" />, color: 'emerald' },
+  { slug: 'memory', name: 'Memory', description: 'View/manage copilot memory', category: 'system', icon: <Brain className="h-3 w-3" />, color: 'amber' },
+  { slug: 'export', name: 'Export', description: 'Export conversation', category: 'system', icon: <Download className="h-3 w-3" />, color: 'teal' },
+  { slug: 'workflow', name: 'Workflow', description: 'Trigger a workflow', category: 'automation', icon: <RefreshCw className="h-3 w-3" />, color: 'blue' },
+  { slug: 'report', name: 'Report', description: 'Generate a report', category: 'business', icon: <BarChart3 className="h-3 w-3" />, color: 'teal' },
+  { slug: 'forecast', name: 'Forecast', description: 'Run financial forecast', category: 'business', icon: <BarChart3 className="h-3 w-3" />, color: 'emerald' },
+  { slug: 'validate', name: 'Validate', description: 'Validate business idea', category: 'business', icon: <Shield className="h-3 w-3" />, color: 'amber' },
+];
+
+// ── Context-aware Suggestions ──
+const MODULE_SUGGESTIONS: Record<string, string[]> = {
+  dashboard: [
+    'Analyze my current KPIs',
+    'Generate weekly report',
+    "What's my burn rate trend?",
+    'Show revenue forecast',
+  ],
+  'business-plans': [
+    'Generate a bank loan proposal',
+    'Review my plan for consistency',
+    'Create pitch deck from this plan',
+    '/forecast Run 3-year projections',
+  ],
+  financials: [
+    'Run revenue forecast',
+    'Calculate DSCR sensitivity',
+    'What-if analysis on MRR growth',
+    '/report financial',
+  ],
+  agents: [
+    'Create a new agent',
+    'Monitor agent tasks',
+    'Deploy browser agent',
+    'Show agent performance',
+  ],
+  workflows: [
+    'Create automated workflow',
+    'Schedule daily KPI report',
+    'Set up revenue alert',
+    'Review workflow status',
+  ],
+  memory: [
+    'What do you remember about my business?',
+    '/memory View all memories',
+    'Summarize key business insights',
+    'What are my financial priorities?',
+  ],
+  reports: [
+    '/report investor',
+    '/report kpi',
+    'Generate board presentation',
+    'Export financial summary',
+  ],
+  'idea-canvas': [
+    '/validate my current idea',
+    'Score my business model',
+    'Compare against benchmarks',
+    'Identify red flags',
+  ],
+  'plan-review': [
+    'Review plan as bank lender',
+    'Check narrative vs financial consistency',
+    'Fix discrepancies in my plan',
+    'Score my proposal for investor',
+  ],
+  'plan-actuals': [
+    'Analyze variance trends',
+    'Why is cash flow below plan?',
+    'Can I afford a new hire?',
+    'Forecast next quarter actuals',
+  ],
+  'pitch-deck': [
+    'Generate investor pitch deck',
+    'Create bank presentation',
+    'Prepare anticipated questions',
+    'Link data points to plan',
+  ],
+  research: [
+    '/search ASEAN SME market size 2024',
+    'Verify my citations',
+    'Find competitor benchmarks',
+    'Research Malaysian SME grants',
+  ],
+  openclaw: [
+    'Show gateway status',
+    'Configure WhatsApp channel',
+    'List active sessions',
+    'Review SOUL.md personality',
+  ],
+  settings: [
+    'Connect QuickBooks integration',
+    'Change AI model settings',
+    'Update company profile',
+    'Configure notifications',
+  ],
+};
+
+// ── Code Block Renderer ──
+function CodeBlock({ language, code, filename }: { language: string; code: string; filename?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-lg border border-border overflow-hidden my-2 bg-zinc-950">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
+          <Terminal className="h-3 w-3 text-emerald-400" />
+          <span className="text-[11px] font-mono text-zinc-400">{language || 'text'}</span>
+          {filename && (
+            <>
+              <span className="text-zinc-600">—</span>
+              <span className="text-[11px] font-mono text-emerald-400">{filename}</span>
+            </>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 rounded hover:bg-zinc-800"
+          onClick={handleCopy}
+        >
+          {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3 text-zinc-400" />}
+        </Button>
+      </div>
+      <pre className="p-3 overflow-x-auto text-[12px] leading-relaxed font-mono text-zinc-300">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+// ── Tool Execution Panel ──
+function ToolPanel({ toolResult }: { toolResult: NonNullable<ChatMessage['toolResult']> }) {
+  const [expanded, setExpanded] = useState(true);
+
+  const statusIcon = toolResult.status === 'running' ? (
+    <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
+  ) : toolResult.status === 'success' ? (
+    <Check className="h-3.5 w-3.5 text-emerald-500" />
+  ) : (
+    <X className="h-3.5 w-3.5 text-rose-500" />
+  );
+
+  const statusColor = toolResult.status === 'running' ? 'border-amber-500/30 bg-amber-500/5' :
+    toolResult.status === 'success' ? 'border-emerald-500/30 bg-emerald-500/5' :
+    'border-rose-500/30 bg-rose-500/5';
+
+  return (
+    <div className={`rounded-lg border ${statusColor} overflow-hidden my-2`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/5 transition-colors"
+      >
+        {statusIcon}
+        <Wrench className="h-3 w-3 text-muted-foreground" />
+        <span className="text-xs font-medium">{toolResult.tool}</span>
+        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
+          {toolResult.status}
+        </Badge>
+        {toolResult.duration && (
+          <span className="text-[10px] text-muted-foreground ml-auto">{toolResult.duration}ms</span>
+        )}
+        {expanded ? <ChevronUp className="h-3 w-3 text-muted-foreground ml-1" /> : <ChevronDown className="h-3 w-3 text-muted-foreground ml-1" />}
+      </button>
+      {expanded && (
+        <div className="border-t border-border/50 px-3 py-2 space-y-1.5">
+          {toolResult.input && (
+            <div>
+              <span className="text-[10px] text-muted-foreground font-medium">Input</span>
+              <pre className="text-[11px] font-mono text-zinc-400 mt-0.5 max-h-24 overflow-y-auto whitespace-pre-wrap">{toolResult.input}</pre>
+            </div>
+          )}
+          {toolResult.output && (
+            <div>
+              <span className="text-[10px] text-muted-foreground font-medium">Output</span>
+              <pre className="text-[11px] font-mono text-zinc-300 mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap">{toolResult.output}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── File Edit Panel ──
+function FileEditPanel({ fileEdit }: { fileEdit: NonNullable<ChatMessage['fileEdit']> }) {
+  const [showContent, setShowContent] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const text = fileEdit.diff || fileEdit.content || '';
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 overflow-hidden my-2">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <FileCode2 className="h-3.5 w-3.5 text-emerald-500" />
+        <span className="text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400">{fileEdit.path}</span>
+        <Badge className="text-[9px] px-1.5 py-0 h-4 bg-emerald-500/15 text-emerald-600 border-emerald-500/30">edited</Badge>
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded" onClick={handleCopy}>
+            {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded" onClick={() => setShowContent(!showContent)}>
+            {showContent ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </Button>
+        </div>
+      </div>
+      {showContent && (fileEdit.diff || fileEdit.content) && (
+        <div className="border-t border-emerald-500/20 px-3 py-2">
+          <pre className="text-[11px] font-mono text-zinc-300 max-h-48 overflow-y-auto whitespace-pre-wrap">
+            {fileEdit.diff || fileEdit.content}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Mini File Browser ──
+function FileBrowser({ onSelect, onClose }: { onSelect: (path: string) => void; onClose: () => void }) {
+  const [files, setFiles] = useState<Array<{ name: string; isDirectory: boolean; path: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentDir, setCurrentDir] = useState('src');
+
+  const loadDir = useCallback(async (dir: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/copilot/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool: 'list_files', params: { directory: dir } }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFiles(data.files || []);
+        setCurrentDir(dir);
+      }
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDir('src');
+  }, [loadDir]);
+
+  return (
+    <div className="border border-border rounded-lg bg-popover shadow-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+        <div className="flex items-center gap-2">
+          <FolderTree className="h-3.5 w-3.5 text-emerald-500" />
+          <span className="text-xs font-medium font-mono">{currentDir}/</span>
+        </div>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+      <ScrollArea className="max-h-64">
+        {loading ? (
+          <div className="p-3 flex items-center gap-2">
+            <Loader2 className="h-3 w-3 animate-spin text-emerald-500" />
+            <span className="text-xs text-muted-foreground">Loading...</span>
+          </div>
+        ) : (
+          <div className="p-1">
+            {currentDir !== 'src' && (
+              <button
+                onClick={() => {
+                  const parent = currentDir.split('/').slice(0, -1).join('/') || 'src';
+                  loadDir(parent);
+                }}
+                className="w-full text-left px-3 py-1.5 rounded-md hover:bg-accent flex items-center gap-2 text-xs"
+              >
+                <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                <span className="text-muted-foreground">..</span>
+              </button>
+            )}
+            {files.map((f) => (
+              <button
+                key={f.path}
+                onClick={() => {
+                  if (f.isDirectory) {
+                    loadDir(f.path);
+                  } else {
+                    onSelect(f.path);
+                    onClose();
+                  }
+                }}
+                className="w-full text-left px-3 py-1.5 rounded-md hover:bg-accent flex items-center gap-2 text-xs"
+              >
+                {f.isDirectory ? (
+                  <FolderTree className="h-3 w-3 text-amber-500" />
+                ) : (
+                  <FileCode2 className="h-3 w-3 text-emerald-500" />
+                )}
+                <span className="font-mono">{f.name}</span>
+              </button>
+            ))}
+            {files.length === 0 && (
+              <p className="text-xs text-muted-foreground p-3 text-center">Empty directory</p>
+            )}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  );
+}
+
+// ── Render Message Content with code block detection ──
+function RenderMessageContent({ content }: { content: string }) {
+  const parts = useMemo(() => {
+    const result: Array<{ type: 'text' | 'code'; content: string; language: string }> = [];
+    const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        result.push({ type: 'text', content: content.slice(lastIndex, match.index), language: '' });
+      }
+      result.push({ type: 'code', content: match[2].trim(), language: match[1] || 'text' });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < content.length) {
+      result.push({ type: 'text', content: content.slice(lastIndex), language: '' });
+    }
+
+    return result.length > 0 ? result : [{ type: 'text' as const, content, language: '' }];
+  }, [content]);
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.type === 'code' ? (
+          <CodeBlock key={i} language={part.language} code={part.content} />
+        ) : (
+          <div key={i} className="whitespace-pre-wrap break-words">{part.content}</div>
+        )
+      )}
+    </>
+  );
+}
+
 export default function CopilotPanel() {
   const {
     copilotOpen, toggleCopilot, chatMessages, addChatMessage,
@@ -34,6 +416,7 @@ export default function CopilotPanel() {
     copilotMemories, setCopilotMemories,
     voiceRecording, setVoiceRecording,
     copilotInitialized, setCopilotInitialized,
+    activeModule,
   } = useAppStore();
 
   const [input, setInput] = useState('');
@@ -44,6 +427,8 @@ export default function CopilotPanel() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [asrLoading, setAsrLoading] = useState(false);
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +465,7 @@ export default function CopilotPanel() {
       }
 
       try {
+        const memoryRes = await fetch('/api/memory');
         if (memoryRes.ok) {
           const memData = await memoryRes.json();
           const mems = (memData.memories || []).map((m: Record<string, unknown>) => ({
@@ -106,7 +492,7 @@ export default function CopilotPanel() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [chatMessages, imageGenerating, searchLoading]);
+  }, [chatMessages, imageGenerating, searchLoading, streamingText]);
 
   // ── Focus input when opened ──
   useEffect(() => {
@@ -142,6 +528,40 @@ export default function CopilotPanel() {
     }
   }, []);
 
+  // ── Streaming effect ──
+  const streamText = useCallback((text: string, messageId: string) => {
+    setStreamingText('');
+    let i = 0;
+    const speed = 8; // ms per character
+    const interval = setInterval(() => {
+      if (i < text.length) {
+        const chunkSize = Math.min(3, text.length - i);
+        setStreamingText(text.slice(0, i + chunkSize));
+        i += chunkSize;
+      } else {
+        clearInterval(interval);
+        setStreamingText(null);
+      }
+    }, speed);
+  }, []);
+
+  // ── Execute Copilot Tool ──
+  const executeTool = useCallback(async (tool: string, params: Record<string, string>): Promise<{ success: boolean; data?: unknown; error?: string }> => {
+    const startTime = Date.now();
+    try {
+      const res = await fetch('/api/copilot/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool, params }),
+      });
+      const data = await res.json();
+      const duration = Date.now() - startTime;
+      return { success: res.ok, data, error: res.ok ? undefined : data.error };
+    } catch {
+      return { success: false, error: 'Tool execution failed' };
+    }
+  }, []);
+
   // ── Send Chat Message to /api/ai/chat ──
   const sendChatMessage = useCallback(async (messageText: string, skillName?: string) => {
     if (!messageText.trim() || chatLoading) return;
@@ -166,7 +586,25 @@ export default function CopilotPanel() {
         ? `\n\n## User Memory Context\n${copilotMemories.map(m => `- ${m.key}: ${m.content}`).join('\n')}`
         : '';
 
-      const systemPrompt = `You are GangNiaga AI Copilot — an autonomous business intelligence assistant built into GangNiaga AI OS. You are an expert in business planning, financial forecasting, market research, and AI-powered automation for ASEAN SMEs.${memoryContext}`;
+      const moduleContext = `\n\n## Current Module\nThe user is currently viewing: ${activeModule}`;
+
+      const systemPrompt = `You are GangNiaga AI Copilot — an advanced autonomous AI assistant with FULL PROJECT EDITING CAPABILITIES built into GangNiaga AI OS. You can:
+
+1. **Code Operations**: Read, write, and edit any file in the project
+2. **Project Management**: List files, search codebase, check git status
+3. **Business Intelligence**: Generate business plans, financial forecasts, market analysis, pitch decks
+4. **Database Operations**: Query and manage the database
+5. **AI Capabilities**: Generate images, search the web, transcribe audio, text-to-speech
+6. **Workflow Automation**: Create and manage automated workflows and AI agents
+7. **Deploy Operations**: Deploy the project
+
+When the user asks you to make changes, you should:
+1. Analyze the request
+2. Show what you're about to do
+3. Execute the change
+4. Confirm the result
+
+You have access to all project files, the database, and external AI services. You are running on Next.js 16 with TypeScript, Tailwind CSS, Prisma ORM, and Zustand state management.${memoryContext}${moduleContext}`;
 
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -181,16 +619,18 @@ export default function CopilotPanel() {
       if (!response.ok) throw new Error('Chat request failed');
 
       const data = await response.json();
+      const responseText = data.response || 'I apologize, but I encountered an issue processing your request. Please try again.';
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'I apologize, but I encountered an issue processing your request. Please try again.',
+        content: responseText,
         timestamp: new Date().toISOString(),
         type: 'text',
       };
 
       addChatMessage(assistantMessage);
+      streamText(responseText, assistantMessage.id);
 
       // Trigger auto-learn
       const updatedMessages = [...chatMessages, userMessage, assistantMessage];
@@ -206,7 +646,7 @@ export default function CopilotPanel() {
     } finally {
       setChatLoading(false);
     }
-  }, [chatLoading, chatMessages, copilotMemories, addChatMessage, setChatLoading, triggerAutoLearn]);
+  }, [chatLoading, chatMessages, copilotMemories, activeModule, addChatMessage, setChatLoading, triggerAutoLearn, streamText]);
 
   // ── Handle Slash Commands ──
   const handleSlashCommand = useCallback(async (type: string, args: string) => {
@@ -321,6 +761,542 @@ export default function CopilotPanel() {
         break;
       }
 
+      case 'edit': {
+        const parts = args.trim().split(/\s+/);
+        const filePath = parts[0];
+        const instruction = parts.slice(1).join(' ');
+
+        if (!filePath) {
+          toast.error('Usage: /edit <file> <instruction>');
+          return;
+        }
+
+        // First read the file
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `/edit ${args.trim()}`,
+          timestamp: new Date().toISOString(),
+          type: 'skill',
+          skillName: 'File Edit',
+        };
+        addChatMessage(userMsg);
+        setChatLoading(true);
+
+        // Show running tool
+        const toolMsgId = (Date.now() + 0.5).toString();
+        addChatMessage({
+          id: toolMsgId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          type: 'tool_result',
+          toolResult: { tool: `read_file: ${filePath}`, status: 'running', input: `Path: ${filePath}` },
+        });
+
+        const readResult = await executeTool('read_file', { path: filePath });
+
+        if (!readResult.success) {
+          // Update tool status to error
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: `Failed to read file: ${readResult.error || 'Unknown error'}. Please check the file path.`,
+            timestamp: new Date().toISOString(),
+            type: 'text',
+          });
+          setChatLoading(false);
+          return;
+        }
+
+        const fileData = readResult.data as { content: string; language: string };
+        const editInstruction = instruction || 'Improve this code';
+
+        // Send to AI with file content
+        try {
+          const memoryContext = copilotMemories.length > 0
+            ? `\n\n## User Memory Context\n${copilotMemories.map(m => `- ${m.key}: ${m.content}`).join('\n')}`
+            : '';
+
+          const systemPrompt = `You are a code editing assistant. The user wants to edit a file. Apply the requested changes and return the COMPLETE updated file content. Only output the code, no explanations outside the code.${memoryContext}`;
+
+          const response = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `Edit this file with the following instruction: "${editInstruction}"\n\nCurrent file content:\n\`\`\`${fileData.language}\n${fileData.content}\n\`\`\`\n\nReturn the COMPLETE updated file. Do not omit any parts.`,
+              history: [],
+              systemPrompt,
+            }),
+          });
+
+          if (!response.ok) throw new Error('AI edit failed');
+
+          const data = await response.json();
+          const newContent = data.response || '';
+
+          // Extract code from the response (handle if it's wrapped in code block)
+          let codeContent = newContent;
+          const codeMatch = newContent.match(/```(?:\w*)\n?([\s\S]*?)```/);
+          if (codeMatch) {
+            codeContent = codeMatch[1].trim();
+          }
+
+          // Write the file
+          const writeResult = await executeTool('edit_file', { path: filePath, content: codeContent });
+
+          if (writeResult.success) {
+            addChatMessage({
+              id: (Date.now() + 2).toString(),
+              role: 'assistant',
+              content: `Successfully edited \`${filePath}\``,
+              timestamp: new Date().toISOString(),
+              type: 'file_edit',
+              fileEdit: { path: filePath, content: codeContent.slice(0, 2000) },
+            });
+            toast.success(`File ${filePath} updated successfully`);
+          } else {
+            addChatMessage({
+              id: (Date.now() + 2).toString(),
+              role: 'assistant',
+              content: `Failed to write file: ${writeResult.error}`,
+              timestamp: new Date().toISOString(),
+              type: 'text',
+            });
+          }
+        } catch {
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: 'AI editing failed. Please try again.',
+            timestamp: new Date().toISOString(),
+            type: 'text',
+          });
+        } finally {
+          setChatLoading(false);
+        }
+        break;
+      }
+
+      case 'analyze': {
+        const filePath = args.trim();
+        if (!filePath) {
+          toast.error('Usage: /analyze <file>');
+          return;
+        }
+
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `/analyze ${filePath}`,
+          timestamp: new Date().toISOString(),
+          type: 'skill',
+          skillName: 'Code Analysis',
+        };
+        addChatMessage(userMsg);
+        setChatLoading(true);
+
+        const startTime = Date.now();
+        const result = await executeTool('analyze_code', { path: filePath });
+
+        if (result.success) {
+          const data = result.data as { lines: number; language: string; issues: string[]; suggestions: string[]; size: number };
+          const duration = Date.now() - startTime;
+
+          const analysisText = [
+            `**Analysis of \`${filePath}\`** (${duration}ms)`,
+            ``,
+            `📊 **Stats**: ${data.lines} lines | ${data.language} | ${(data.size / 1024).toFixed(1)}KB`,
+            ``,
+            ...(data.issues.length > 0 ? [
+              `⚠️ **Issues** (${data.issues.length}):`,
+              ...data.issues.map((i: string) => `  - ${i}`),
+              ``,
+            ] : []),
+            ...(data.suggestions.length > 0 ? [
+              `💡 **Suggestions** (${data.suggestions.length}):`,
+              ...data.suggestions.map((s: string) => `  - ${s}`),
+            ] : []),
+            ...(data.issues.length === 0 && data.suggestions.length === 0 ? ['✅ No issues found!'] : []),
+          ].join('\n');
+
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: analysisText,
+            timestamp: new Date().toISOString(),
+            type: 'tool_result',
+            toolResult: {
+              tool: 'analyze_code',
+              status: 'success',
+              input: filePath,
+              output: `${data.issues.length} issues, ${data.suggestions.length} suggestions`,
+              duration,
+            },
+          });
+        } else {
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: `Analysis failed: ${result.error}`,
+            timestamp: new Date().toISOString(),
+            type: 'text',
+          });
+        }
+        setChatLoading(false);
+        break;
+      }
+
+      case 'git': {
+        const subCmd = args.trim() || 'status';
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `/git ${subCmd}`,
+          timestamp: new Date().toISOString(),
+          type: 'skill',
+          skillName: 'Git',
+        };
+        addChatMessage(userMsg);
+        setChatLoading(true);
+
+        const startTime = Date.now();
+
+        if (subCmd === 'status') {
+          const result = await executeTool('git_status', {});
+          const duration = Date.now() - startTime;
+          if (result.success) {
+            const data = result.data as { status: string; branch: string };
+            addChatMessage({
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: `**Git Status** (branch: \`${data.branch}\`)\n\`\`\`\n${data.status || 'Working tree clean'}\n\`\`\``,
+              timestamp: new Date().toISOString(),
+              type: 'tool_result',
+              toolResult: { tool: 'git_status', status: 'success', input: subCmd, output: data.status, duration },
+            });
+          } else {
+            addChatMessage({
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: `Git status failed: ${result.error}`,
+              timestamp: new Date().toISOString(),
+              type: 'text',
+            });
+          }
+        } else if (subCmd === 'log') {
+          const result = await executeTool('git_log', { count: '10' });
+          const duration = Date.now() - startTime;
+          if (result.success) {
+            const data = result.data as { log: string };
+            addChatMessage({
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: `**Recent Git Log**\n\`\`\`\n${data.log}\n\`\`\``,
+              timestamp: new Date().toISOString(),
+              type: 'tool_result',
+              toolResult: { tool: 'git_log', status: 'success', input: '10', output: data.log?.slice(0, 200), duration },
+            });
+          } else {
+            addChatMessage({
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: `Git log failed: ${result.error}`,
+              timestamp: new Date().toISOString(),
+              type: 'text',
+            });
+          }
+        } else {
+          await sendChatMessage(`Run git ${subCmd} and explain the result`);
+        }
+        setChatLoading(false);
+        break;
+      }
+
+      case 'db': {
+        const operation = args.trim() || 'schema';
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `/db ${operation}`,
+          timestamp: new Date().toISOString(),
+          type: 'skill',
+          skillName: 'Database',
+        };
+        addChatMessage(userMsg);
+        setChatLoading(true);
+
+        const startTime = Date.now();
+        if (operation === 'schema') {
+          const result = await executeTool('db_schema', {});
+          const duration = Date.now() - startTime;
+          if (result.success) {
+            const data = result.data as { schema: string };
+            addChatMessage({
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: `**Database Schema**\n\`\`\`prisma\n${data.schema.slice(0, 3000)}${data.schema.length > 3000 ? '\n... (truncated)' : ''}\n\`\`\``,
+              timestamp: new Date().toISOString(),
+              type: 'tool_result',
+              toolResult: { tool: 'db_schema', status: 'success', input: operation, output: `${data.schema.length} chars`, duration },
+            });
+          } else {
+            addChatMessage({
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: `Database query failed: ${result.error}`,
+              timestamp: new Date().toISOString(),
+              type: 'text',
+            });
+          }
+        } else {
+          await sendChatMessage(`Database operation: ${operation}. Help me with this.`);
+        }
+        setChatLoading(false);
+        break;
+      }
+
+      case 'deploy': {
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: '/deploy',
+          timestamp: new Date().toISOString(),
+          type: 'skill',
+          skillName: 'Deploy',
+        };
+        addChatMessage(userMsg);
+        setChatLoading(true);
+
+        // Show running tool
+        const toolMsgId = (Date.now() + 0.5).toString();
+        addChatMessage({
+          id: toolMsgId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          type: 'tool_result',
+          toolResult: { tool: 'deploy', status: 'running', input: 'Full deployment' },
+        });
+
+        const startTime = Date.now();
+        const result = await executeTool('deploy', {});
+        const duration = Date.now() - startTime;
+
+        if (result.success) {
+          const data = result.data as { message: string; timestamp: string };
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: `**Deployment Initiated** 🚀\n\n${data.message}\n\nTimestamp: ${data.timestamp}`,
+            timestamp: new Date().toISOString(),
+            type: 'tool_result',
+            toolResult: { tool: 'deploy', status: 'success', input: 'Full deployment', output: data.message, duration },
+          });
+          toast.success('Deployment initiated');
+        } else {
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: `Deployment failed: ${result.error}`,
+            timestamp: new Date().toISOString(),
+            type: 'text',
+          });
+        }
+        setChatLoading(false);
+        break;
+      }
+
+      case 'code': {
+        if (!args.trim()) {
+          toast.error('Usage: /code <description>');
+          return;
+        }
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `/code ${args.trim()}`,
+          timestamp: new Date().toISOString(),
+          type: 'skill',
+          skillName: 'Code Generation',
+        };
+        addChatMessage(userMsg);
+        setChatLoading(true);
+
+        try {
+          const response = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `Generate TypeScript code for: ${args.trim()}\n\nUse Next.js App Router patterns, TypeScript, and Tailwind CSS. Return the complete code with proper typing.`,
+              history: [],
+              systemPrompt: 'You are an expert code generator. Generate clean, well-typed TypeScript code. Always wrap code in proper markdown code blocks with the language identifier.',
+            }),
+          });
+
+          if (!response.ok) throw new Error('Code generation failed');
+          const data = await response.json();
+          const codeResponse = data.response || '';
+
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: codeResponse,
+            timestamp: new Date().toISOString(),
+            type: 'code',
+            codeBlock: { language: 'typescript', code: codeResponse },
+          });
+        } catch {
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: 'Code generation failed. Please try again.',
+            timestamp: new Date().toISOString(),
+            type: 'text',
+          });
+        } finally {
+          setChatLoading(false);
+        }
+        break;
+      }
+
+      case 'fix': {
+        if (!args.trim()) {
+          toast.error('Usage: /fix <description>');
+          return;
+        }
+        await sendChatMessage(`Fix this bug: ${args.trim()}. Analyze the problem, identify the root cause, and provide the fix with explanation.`, 'Bug Fix');
+        break;
+      }
+
+      case 'read': {
+        if (!args.trim()) {
+          toast.error('Usage: /read <url>');
+          return;
+        }
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `/read ${args.trim()}`,
+          timestamp: new Date().toISOString(),
+          type: 'skill',
+          skillName: 'Web Reader',
+        };
+        addChatMessage(userMsg);
+        setChatLoading(true);
+
+        try {
+          const res = await fetch('/api/ai/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: args.trim() }),
+          });
+
+          if (!res.ok) throw new Error('Read failed');
+          const data = await res.json();
+
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: `**Content from ${args.trim()}**\n\n${(data.content || data.html || 'No content extracted').slice(0, 3000)}`,
+            timestamp: new Date().toISOString(),
+            type: 'text',
+          });
+        } catch {
+          addChatMessage({
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: 'Failed to read the web page. Please check the URL.',
+            timestamp: new Date().toISOString(),
+            type: 'text',
+          });
+        } finally {
+          setChatLoading(false);
+        }
+        break;
+      }
+
+      case 'skills': {
+        const skillsList = SLASH_COMMANDS.map(c => `**/${c.slug}** — ${c.description}`).join('\n');
+        const customSkills = copilotSkills.length > 0
+          ? `\n\n**Custom Skills:**\n${copilotSkills.map(s => `**/${s.slug}** — ${s.description}`).join('\n')}`
+          : '';
+        addChatMessage({
+          id: (Date.now()).toString(),
+          role: 'assistant',
+          content: `**Available Commands & Skills:**\n\n${skillsList}${customSkills}`,
+          timestamp: new Date().toISOString(),
+          type: 'text',
+        });
+        break;
+      }
+
+      case 'memory': {
+        const memList = copilotMemories.length > 0
+          ? copilotMemories.map(m => `- **${m.key}**: ${m.content.slice(0, 100)}`).join('\n')
+          : 'No memories stored yet.';
+        addChatMessage({
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `**Copilot Memory** (${copilotMemories.length} entries)\n\n${memList}`,
+          timestamp: new Date().toISOString(),
+          type: 'text',
+        });
+        break;
+      }
+
+      case 'export': {
+        const format = args.trim() || 'text';
+        const exportContent = chatMessages.map(m =>
+          `[${m.role.toUpperCase()}] ${m.timestamp}\n${m.content}\n`
+        ).join('\n---\n\n');
+
+        const blob = new Blob([exportContent], { type: format === 'json' ? 'application/json' : 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `copilot-export.${format === 'json' ? 'json' : 'txt'}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Conversation exported as ${format.toUpperCase()}`);
+        break;
+      }
+
+      case 'report': {
+        const reportType = args.trim() || 'investor';
+        await sendChatMessage(`Generate a ${reportType} report for my business. Include executive summary, financial overview, KPI dashboard, and key recommendations.`, 'Report Generator');
+        break;
+      }
+
+      case 'forecast': {
+        await sendChatMessage('Run a comprehensive financial forecast based on current data. Include revenue projections, expense trends, cash flow analysis, and DSCR calculations for the next 12 months.', 'Forecast');
+        break;
+      }
+
+      case 'validate': {
+        await sendChatMessage('Validate my current business idea. Score it on market viability, problem clarity, solution feasibility, revenue potential, and competitive position. Include strengths, weaknesses, and red flags.', 'Idea Validation');
+        break;
+      }
+
+      case 'workflow': {
+        const workflowName = args.trim() || 'daily-kpi';
+        await sendChatMessage(`Create and trigger the "${workflowName}" workflow. Design the steps, assign agents, and execute.`, 'Workflow');
+        break;
+      }
+
+      case 'tts': {
+        const text = args.trim() || 'Text to speech is ready. Type /tts followed by any text to hear it spoken aloud.';
+        if (text) {
+          playTTS(text, 'tts-demo');
+        }
+        break;
+      }
+
+      case 'vision': {
+        toast.info('Vision analysis: Upload an image using the image button, then ask me to analyze it.');
+        break;
+      }
+
       default: {
         // Try matching a skill from the skills list
         const matchedSkill = copilotSkills.find(
@@ -338,7 +1314,7 @@ export default function CopilotPanel() {
         break;
       }
     }
-  }, [addChatMessage, chatMessages, copilotSkills, sendChatMessage, setChatLoading, triggerAutoLearn]);
+  }, [addChatMessage, chatMessages, copilotSkills, sendChatMessage, setChatLoading, triggerAutoLearn, executeTool, copilotMemories, streamText]);
 
   // ── Main Send Handler ──
   const handleSend = useCallback(async () => {
@@ -380,7 +1356,6 @@ export default function CopilotPanel() {
   // ── Voice Recording ──
   const toggleVoiceRecording = async () => {
     if (voiceRecording) {
-      // Stop recording
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
@@ -404,7 +1379,6 @@ export default function CopilotPanel() {
         stream.getTracks().forEach(t => t.stop());
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
 
-        // Convert to base64
         const reader = new FileReader();
         reader.onloadend = async () => {
           const base64Audio = (reader.result as string).split(',')[1];
@@ -426,7 +1400,6 @@ export default function CopilotPanel() {
               : data.transcription?.text || data.transcription?.transcription || '';
 
             if (transcription) {
-              // Send the transcribed text through the chat
               const slashCmd = parseSlashCommand(transcription);
               if (slashCmd) {
                 await handleSlashCommand(slashCmd.type, slashCmd.args);
@@ -456,7 +1429,6 @@ export default function CopilotPanel() {
 
   // ── TTS Playback ──
   const playTTS = async (text: string, messageId: string) => {
-    // Stop any currently playing audio
     if (currentAudio) {
       currentAudio.pause();
       currentAudio = null;
@@ -509,34 +1481,31 @@ export default function CopilotPanel() {
     setPlayingMessageId(null);
   };
 
-  // ── Filter skills for slash menu ──
+  // ── Filter commands for slash menu ──
+  const filteredCommands = SLASH_COMMANDS.filter(c =>
+    c.slug.includes(slashFilter) || c.name.toLowerCase().includes(slashFilter)
+  );
+
   const filteredSkills = copilotSkills.filter(s =>
     s.slug.includes(slashFilter) || s.name.toLowerCase().includes(slashFilter)
   );
 
-  // Built-in commands
-  const builtInCommands = [
-    { slug: 'image', name: 'Image Generation', description: 'Generate an image from text prompt', category: 'ai' },
-    { slug: 'search', name: 'Web Search', description: 'Search the web for information', category: 'ai' },
-  ];
+  const allCommands = [...filteredCommands, ...filteredSkills.map(s => ({
+    slug: s.slug,
+    name: s.name,
+    description: s.description,
+    category: s.category,
+    icon: <Zap className="h-3 w-3" />,
+    color: 'emerald',
+  }))];
 
-  const allCommands = [...builtInCommands, ...filteredSkills].filter(c =>
-    c.slug.includes(slashFilter) || c.name.toLowerCase().includes(slashFilter)
-  );
+  // ── Context-aware suggestions ──
+  const suggestions = MODULE_SUGGESTIONS[activeModule] || MODULE_SUGGESTIONS.dashboard;
 
   // ── Memory usage percentage ──
   const memoryPercent = copilotMemories.length > 0
     ? Math.min(100, Math.round((copilotMemories.length / 100) * 100))
     : 0;
-
-  // ── Suggestions ──
-  const suggestions = [
-    'Analyze my current revenue trends',
-    'Generate a SWOT analysis',
-    'What are my key financial risks?',
-    '/search ASEAN SME market size 2024',
-    '/image Professional business dashboard',
-  ];
 
   if (!copilotOpen) return null;
 
@@ -547,7 +1516,7 @@ export default function CopilotPanel() {
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: 400, opacity: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="fixed right-0 top-0 h-full w-full sm:w-[420px] bg-card/95 backdrop-blur-xl border-l border-border z-50 flex flex-col shadow-2xl"
+        className="fixed right-0 top-0 h-full w-full sm:w-[440px] bg-card/95 backdrop-blur-xl border-l border-border z-50 flex flex-col shadow-2xl"
       >
         {/* ── Header ── */}
         <div className="flex items-center justify-between p-3 border-b border-border bg-gradient-to-r from-emerald-500/5 to-teal-500/5">
@@ -563,19 +1532,43 @@ export default function CopilotPanel() {
                   <span className="text-[10px] text-muted-foreground">Online</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground">|</span>
-                <div className="flex items-center gap-1">
-                  <Brain className="h-2.5 w-2.5 text-amber-500" />
-                  <span className="text-[10px] text-muted-foreground">Memory: {memoryPercent}%</span>
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 cursor-pointer">
+                        <Brain className="h-2.5 w-2.5 text-amber-500" />
+                        <span className="text-[10px] text-muted-foreground">{copilotMemories.length} mem</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">{copilotMemories.length} memories stored ({memoryPercent}% capacity)</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <span className="text-[10px] text-muted-foreground">|</span>
                 <div className="flex items-center gap-1">
                   <Zap className="h-2.5 w-2.5 text-emerald-500" />
-                  <span className="text-[10px] text-muted-foreground">Skills: {copilotSkills.length}</span>
+                  <span className="text-[10px] text-muted-foreground">{copilotSkills.length + SLASH_COMMANDS.length}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">|</span>
+                <div className="flex items-center gap-1">
+                  <Cpu className="h-2.5 w-2.5 text-cyan-500" />
+                  <span className="text-[10px] text-muted-foreground">{activeModule}</span>
                 </div>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFileBrowser(!showFileBrowser)}>
+                    <FolderTree className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Browse files</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -592,48 +1585,74 @@ export default function CopilotPanel() {
           </div>
         </div>
 
-        {/* ── Skills Bar ── */}
-        {copilotSkills.length > 0 && (
-          <div className="border-b border-border px-3 py-2">
-            <ScrollArea className="w-full">
-              <div className="flex gap-1.5 pb-1" style={{ minWidth: 0 }}>
-                {copilotSkills.map((skill) => (
-                  <button
-                    key={skill.id}
-                    onClick={() => {
-                      setInput(`/${skill.slug} `);
+        {/* ── File Browser ── */}
+        <AnimatePresence>
+          {showFileBrowser && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden border-b border-border px-3 py-2"
+            >
+              <FileBrowser
+                onSelect={(path) => {
+                  setInput(`/edit ${path} `);
+                  inputRef.current?.focus();
+                }}
+                onClose={() => setShowFileBrowser(false)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Quick Skills Bar ── */}
+        <div className="border-b border-border px-3 py-2">
+          <ScrollArea className="w-full">
+            <div className="flex gap-1.5 pb-1" style={{ minWidth: 0 }}>
+              {[
+                { slug: 'edit', icon: <FileCode2 className="h-2.5 w-2.5" />, color: 'emerald' },
+                { slug: 'code', icon: <Code2 className="h-2.5 w-2.5" />, color: 'emerald' },
+                { slug: 'analyze', icon: <Eye className="h-2.5 w-2.5" />, color: 'amber' },
+                { slug: 'git', icon: <GitBranch className="h-2.5 w-2.5" />, color: 'orange' },
+                { slug: 'deploy', icon: <Rocket className="h-2.5 w-2.5" />, color: 'rose' },
+                { slug: 'image', icon: <ImagePlus className="h-2.5 w-2.5" />, color: 'violet' },
+                { slug: 'search', icon: <Search className="h-2.5 w-2.5" />, color: 'cyan' },
+                { slug: 'db', icon: <Database className="h-2.5 w-2.5" />, color: 'violet' },
+                { slug: 'skills', icon: <Zap className="h-2.5 w-2.5" />, color: 'emerald' },
+                { slug: 'memory', icon: <Brain className="h-2.5 w-2.5" />, color: 'amber' },
+                { slug: 'forecast', icon: <BarChart3 className="h-2.5 w-2.5" />, color: 'teal' },
+                { slug: 'validate', icon: <Shield className="h-2.5 w-2.5" />, color: 'amber' },
+              ].map((cmd) => (
+                <button
+                  key={cmd.slug}
+                  onClick={() => {
+                    if (cmd.slug === 'skills' || cmd.slug === 'memory') {
+                      handleSlashCommand(cmd.slug, '');
+                    } else if (cmd.slug === 'deploy') {
+                      handleSlashCommand('deploy', '');
+                    } else {
+                      setInput(`/${cmd.slug} `);
                       inputRef.current?.focus();
-                    }}
-                    className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 hover:border-emerald-500/40 transition-colors"
-                  >
-                    <ChevronRight className="h-2.5 w-2.5" />
-                    /{skill.slug}
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    setInput('/image ');
-                    inputRef.current?.focus();
+                    }
                   }}
-                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-violet-500/20 bg-violet-500/5 text-violet-700 dark:text-violet-400 hover:bg-violet-500/15 hover:border-violet-500/40 transition-colors"
+                  className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                    cmd.color === 'emerald' ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15' :
+                    cmd.color === 'amber' ? 'border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15' :
+                    cmd.color === 'cyan' ? 'border-cyan-500/20 bg-cyan-500/5 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/15' :
+                    cmd.color === 'violet' ? 'border-violet-500/20 bg-violet-500/5 text-violet-700 dark:text-violet-400 hover:bg-violet-500/15' :
+                    cmd.color === 'rose' ? 'border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400 hover:bg-rose-500/15' :
+                    cmd.color === 'orange' ? 'border-orange-500/20 bg-orange-500/5 text-orange-700 dark:text-orange-400 hover:bg-orange-500/15' :
+                    cmd.color === 'teal' ? 'border-teal-500/20 bg-teal-500/5 text-teal-700 dark:text-teal-400 hover:bg-teal-500/15' :
+                    'border-border bg-muted/30 text-muted-foreground hover:bg-muted/50'
+                  }`}
                 >
-                  <ImagePlus className="h-2.5 w-2.5" />
-                  /image
+                  {cmd.icon}
+                  /{cmd.slug}
                 </button>
-                <button
-                  onClick={() => {
-                    setInput('/search ');
-                    inputRef.current?.focus();
-                  }}
-                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-cyan-500/20 bg-cyan-500/5 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/15 hover:border-cyan-500/40 transition-colors"
-                >
-                  <Search className="h-2.5 w-2.5" />
-                  /search
-                </button>
-              </div>
-            </ScrollArea>
-          </div>
-        )}
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
 
         {/* ── Messages ── */}
         <ScrollArea className="flex-1 p-4" ref={scrollRef}>
@@ -703,14 +1722,26 @@ export default function CopilotPanel() {
                           ))}
                         </div>
                       </div>
+                    ) : msg.type === 'tool_result' && msg.toolResult ? (
+                      <ToolPanel toolResult={msg.toolResult} />
+                    ) : msg.type === 'file_edit' && msg.fileEdit ? (
+                      <div className="space-y-2">
+                        <p className="text-sm">{msg.content}</p>
+                        <FileEditPanel fileEdit={msg.fileEdit} />
+                      </div>
+                    ) : msg.type === 'code' && msg.codeBlock ? (
+                      <CodeBlock language={msg.codeBlock.language} code={msg.codeBlock.code} filename={msg.codeBlock.filename} />
+                    ) : msg.role === 'assistant' && msg.type !== 'image' ? (
+                      <RenderMessageContent content={msg.content} />
                     ) : (
                       <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                     )}
                   </div>
 
-                  {/* TTS Play button for assistant messages */}
-                  {msg.role === 'assistant' && msg.type !== 'image' && (
-                    <div className="flex items-center gap-1">
+                  {/* Action buttons for assistant messages */}
+                  {msg.role === 'assistant' && msg.type !== 'image' && msg.content && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {/* TTS Play button */}
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -741,14 +1772,96 @@ export default function CopilotPanel() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+
+                      {/* Copy button */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-full"
+                              onClick={async () => {
+                                await navigator.clipboard.writeText(msg.content);
+                                toast.success('Copied to clipboard');
+                              }}
+                            >
+                              <Copy className="h-3 w-3 text-muted-foreground hover:text-emerald-500" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Copy response</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      {/* Re-run button for tool results */}
+                      {msg.type === 'tool_result' && msg.toolResult && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 rounded-full"
+                                onClick={() => {
+                                  if (msg.toolResult?.input) {
+                                    sendChatMessage(`Run that again: ${msg.toolResult.input}`);
+                                  }
+                                }}
+                              >
+                                <RefreshCw className="h-3 w-3 text-muted-foreground hover:text-amber-500" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Run again</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+
+                      {/* Apply button for code messages */}
+                      {msg.type === 'code' && msg.codeBlock && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 rounded-full text-[10px] text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                                onClick={() => {
+                                  toast.info('Code ready to apply. Use /edit to write to a file.');
+                                }}
+                              >
+                                <FileCode2 className="h-3 w-3 mr-1" />
+                                Apply
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Apply this code to a file</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                   )}
                 </div>
               </motion.div>
             ))}
 
+            {/* Streaming text */}
+            {streamingText && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex gap-3"
+              >
+                <div className="flex-shrink-0 h-7 w-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                  <Bot className="h-3.5 w-3.5 text-white" />
+                </div>
+                <div className="max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed bg-muted/50 border border-border">
+                  <RenderMessageContent content={streamingText} />
+                  <span className="inline-block w-1.5 h-4 bg-emerald-500 animate-pulse ml-0.5 align-text-bottom" />
+                </div>
+              </motion.div>
+            )}
+
             {/* Loading States */}
-            {chatLoading && !imageGenerating && !searchLoading && (
+            {chatLoading && !imageGenerating && !searchLoading && !asrLoading && !streamingText && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -821,12 +1934,12 @@ export default function CopilotPanel() {
             )}
           </div>
 
-          {/* ── Suggestions ── */}
-          {chatMessages.length <= 1 && !chatLoading && (
+          {/* ── Context-aware Suggestions ── */}
+          {chatMessages.length <= 1 && !chatLoading && !streamingText && (
             <div className="mt-6 space-y-2">
               <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <Sparkles className="h-3 w-3 text-emerald-500" />
-                Suggested prompts
+                Suggested for {activeModule}
               </p>
               <div className="grid gap-2">
                 {suggestions.map((suggestion) => (
@@ -856,25 +1969,39 @@ export default function CopilotPanel() {
               exit={{ opacity: 0, y: 10 }}
               className="border-t border-border mx-3 mb-1 bg-popover rounded-lg shadow-lg overflow-hidden"
             >
-              <ScrollArea className="max-h-48">
+              <ScrollArea className="max-h-56">
                 <div className="p-1">
                   {allCommands.map((cmd) => (
                     <button
                       key={cmd.slug}
                       onClick={() => {
-                        setInput(`/${cmd.slug} `);
-                        setShowSlashMenu(false);
-                        inputRef.current?.focus();
+                        if (cmd.slug === 'deploy' || cmd.slug === 'skills' || cmd.slug === 'memory') {
+                          setShowSlashMenu(false);
+                          handleSlashCommand(cmd.slug, '');
+                        } else {
+                          setInput(`/${cmd.slug} `);
+                          setShowSlashMenu(false);
+                          inputRef.current?.focus();
+                        }
                       }}
                       className="w-full text-left px-3 py-2 rounded-md hover:bg-accent flex items-center gap-2 transition-colors"
                     >
-                      <ChevronRight className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                      <div className="flex items-center justify-center h-5 w-5 rounded border border-border bg-muted/30">
+                        {cmd.icon}
+                      </div>
                       <div className="min-w-0">
                         <span className="text-xs font-medium">/{cmd.slug}</span>
                         <span className="text-[11px] text-muted-foreground ml-2 truncate">{cmd.description}</span>
                       </div>
                       {cmd.category && (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 ml-auto flex-shrink-0">
+                        <Badge variant="outline" className={`text-[9px] px-1 py-0 h-3.5 ml-auto flex-shrink-0 ${
+                          cmd.category === 'code' ? 'border-emerald-500/30 text-emerald-600' :
+                          cmd.category === 'ai' ? 'border-violet-500/30 text-violet-600' :
+                          cmd.category === 'ops' ? 'border-orange-500/30 text-orange-600' :
+                          cmd.category === 'business' ? 'border-teal-500/30 text-teal-600' :
+                          cmd.category === 'automation' ? 'border-cyan-500/30 text-cyan-600' :
+                          'border-border'
+                        }`}>
                           {cmd.category}
                         </Badge>
                       )}
@@ -907,7 +2034,7 @@ export default function CopilotPanel() {
                     {voiceRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{voiceRecording ? 'Stop recording' : 'Voice input'}</TooltipContent>
+                <TooltipContent>{voiceRecording ? 'Stop recording' : 'Voice input (/voice)'}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
 
@@ -918,11 +2045,29 @@ export default function CopilotPanel() {
                 value={input}
                 onChange={(e) => handleInputChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask GangNiaga AI... (type / for skills)"
+                placeholder="Ask GangNiaga AI... (type / for commands)"
                 disabled={chatLoading}
-                className="w-full bg-muted/30 border-border focus:border-emerald-500 pr-16 h-9 text-sm"
+                className="w-full bg-muted/30 border-border focus:border-emerald-500 pr-24 h-9 text-sm"
               />
               <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-full hover:bg-emerald-500/10 hover:text-emerald-500"
+                        onClick={() => {
+                          setShowFileBrowser(!showFileBrowser);
+                        }}
+                        disabled={chatLoading}
+                      >
+                        <FolderTree className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Browse files</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -939,7 +2084,7 @@ export default function CopilotPanel() {
                         <ImagePlus className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Generate image</TooltipContent>
+                    <TooltipContent>/image</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 <TooltipProvider>
@@ -958,7 +2103,7 @@ export default function CopilotPanel() {
                         <Search className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Web search</TooltipContent>
+                    <TooltipContent>/search</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
@@ -975,7 +2120,7 @@ export default function CopilotPanel() {
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-            GangNiaga AI Copilot — Autonomous Business Intelligence
+            GangNiaga AI Copilot — Advanced Project Intelligence
             {voiceRecording && (
               <span className="text-red-500 ml-1.5 animate-pulse">● Recording</span>
             )}

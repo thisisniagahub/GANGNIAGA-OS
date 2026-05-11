@@ -1,7 +1,7 @@
 # GangNiaga AI OS — Agent System Document
 
-> **Version:** 1.0  
-> **Last Updated:** January 2025  
+> **Version:** v0.3.0  
+> **Last Updated:** March 2025  
 > **Scope:** Multi-Agent AI architecture, orchestration, memory, and integration patterns
 
 ---
@@ -15,11 +15,14 @@
 5. [Workflow Orchestration](#5-workflow-orchestration)
 6. [Memory & Context System](#6-memory--context-system)
 7. [Citation & Verification System](#7-citation--verification-system)
-8. [AI Integration (z-ai-web-dev-sdk)](#8-ai-integration-z-ai-web-dev-sdk)
+8. [AI Integration (Multi-Provider)](#8-ai-integration-multi-provider)
 9. [Agent Communication Protocol](#9-agent-communication-protocol)
-10. [Error Handling & Recovery](#10-error-handling--recovery)
-11. [Performance Considerations](#11-performance-considerations)
-12. [Future Agent Capabilities](#12-future-agent-capabilities)
+10. [OpenClaw Delegates](#10-openclaw-delegates)
+11. [Skills System Agents](#11-skills-system-agents)
+12. [Gateway Agent Communication](#12-gateway-agent-communication)
+13. [Error Handling & Recovery](#13-error-handling--recovery)
+14. [Performance Considerations](#14-performance-considerations)
+15. [Future Agent Capabilities](#15-future-agent-capabilities)
 
 ---
 
@@ -1108,16 +1111,168 @@ The Plan Review Agent specifically checks that all cited data points are verifie
 
 ---
 
-## 8. AI Integration (z-ai-web-dev-sdk)
+## 8. AI Integration (Multi-Provider)
 
-### SDK Initialization Pattern
+### Provider Architecture
 
-All AI operations in GangNiaga use the `z-ai-web-dev-sdk` package. The SDK is initialized once per API route and reused across requests:
+GangNiaga AI OS now uses a **multi-provider adapter** instead of a single SDK. The adapter selects the appropriate AI provider based on the deployment environment:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MULTI-PROVIDER AI ADAPTER                         │
+│                                                                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────────┐ │
+│  │ ZAI SDK      │  │ OpenAI API   │  │ OpenRouter                 │ │
+│  │ (dev)        │  │ (prod)       │  │ (Vercel)                   │ │
+│  │              │  │              │  │ ┌────┐ ┌────┐ ┌────┐      │ │
+│  │ z-ai-web-dev │  │ gpt-4o       │  │ │Key1│ │Key2│ │Key3│      │ │
+│  │ -sdk         │  │              │  │ └────┘ └────┘ └────┘      │ │
+│  │              │  │              │  │ ┌────┐  Round-robin        │ │
+│  │              │  │              │  │ │Key4│  selection          │ │
+│  └──────┬───────┘  └──────┬───────┘  │ └────┘                    │ │
+│         │                 │          └────────────┬───────────────┘ │
+│         └─────────┬───────┴───────────────────────┘                │
+│                   │                                                  │
+│          ┌────────┴────────┐                                        │
+│          │  Provider Router │                                       │
+│          │  (env-based)     │                                       │
+│          └────────┬────────┘                                        │
+│                   │                                                  │
+│          Default: openrouter/owl-alpha                               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Provider Selection Logic
+
+```typescript
+type AIProvider = 'zai' | 'openai' | 'openrouter';
+
+function getProvider(): AIProvider {
+  const env = process.env.NODE_ENV;
+  const deployment = process.env.DEPLOYMENT_TARGET;
+
+  if (deployment === 'vercel') return 'openrouter';
+  if (env === 'production') return 'openai';
+  return 'zai';  // development default
+}
+```
+
+### OpenRouter Round-Robin
+
+OpenRouter supports up to 4 API keys with automatic round-robin distribution for load balancing and rate limit management:
+
+```typescript
+class OpenRouterAdapter {
+  private apiKeys: string[];
+  private currentIndex: number = 0;
+
+  constructor() {
+    this.apiKeys = [
+      process.env.OPENROUTER_API_KEY_1,
+      process.env.OPENROUTER_API_KEY_2,
+      process.env.OPENROUTER_API_KEY_3,
+      process.env.OPENROUTER_API_KEY_4,
+    ].filter(Boolean);
+  }
+
+  getNextKey(): string {
+    const key = this.apiKeys[this.currentIndex];
+    this.currentIndex = (this.currentIndex + 1) % this.apiKeys.length;
+    return key;
+  }
+
+  async createCompletion(messages: Message[]) {
+    return fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.getNextKey()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'openrouter/owl-alpha',
+        messages,
+      }),
+    });
+  }
+}
+```
+
+### SOUL.md Personality System
+
+The multi-provider adapter integrates with the SOUL.md personality system for OpenClaw gateway interactions:
+
+```typescript
+// lib/gateway.ts — SOUL.md prompt integration
+function getSoulPrompt(): string {
+  return `
+You are GangNiaga AI, an autonomous business operating system for ASEAN SMEs.
+
+Language: English (primary), Bahasa Melayu (secondary — switch naturally)
+Personality: Professional but approachable, data-driven, ASEAN-first, action-oriented
+Boundaries: Business planning, financial analysis, market research only
+Never: Give legal/tax advice, fabricate data, share user data
+
+Channel-specific tone:
+- WhatsApp: Concise, bullet-point friendly
+- Telegram: Detailed, markdown-enabled
+- Discord: Community-oriented, collaborative
+- Slack: Professional, structured
+- WebChat: Full-featured, interactive
+- Signal: Private, encrypted-aware
+`;
+}
+```
+
+### Gateway Helpers (lib/gateway.ts — 400 lines)
+
+The gateway library provides core functions for the OpenClaw system:
+
+```typescript
+// lib/gateway.ts — Key exports
+
+// SOUL.md personality prompt
+export function getSoulPrompt(): string;
+
+// AI response via multi-provider adapter
+export async function getAIResponse(
+  messages: Message[],
+  options?: { delegate?: string; channel?: string }
+): Promise<string>;
+
+// Channel-specific message sending
+export async function sendTelegramMessage(
+  chatId: string,
+  text: string,
+  options?: TelegramSendOptions
+): Promise<void>;
+
+export async function sendWhatsAppMessage(
+  phoneNumber: string,
+  text: string,
+  options?: WhatsAppSendOptions
+): Promise<void>;
+
+// Conversation persistence
+export async function getConversationHistory(
+  channel: string,
+  channelUserId: string
+): Promise<GatewayConversation>;
+
+export async function storeMessage(
+  channel: string,
+  channelUserId: string,
+  role: 'user' | 'assistant',
+  content: string
+): Promise<void>;
+```
+
+### SDK Initialization Pattern (ZAI — Development)
+
+When using ZAI in development, the singleton pattern remains:
 
 ```typescript
 import ZAI from 'z-ai-web-dev-sdk';
 
-// Singleton pattern — shared across requests in the same route
 let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
 
 async function getZAI() {
@@ -1128,40 +1283,30 @@ async function getZAI() {
 }
 ```
 
-### Completion API Usage
+### Completion API Usage (Unified)
 
 ```typescript
-const zai = await getZAI();
-
-const completion = await zai.chat.completions.create({
-  messages: [
-    {
-      role: 'assistant',
-      content: 'System prompt defining agent persona and behavior...',
-    },
-    {
-      role: 'user',
-      content: 'Task-specific prompt with input data...',
-    },
-  ],
-  thinking: { type: 'disabled' },
-});
-
-const output = completion.choices?.[0]?.message?.content;
+// Unified completion — adapts to active provider
+const completion = await getAIResponse([
+  { role: 'assistant', content: 'Agent system prompt...' },
+  { role: 'user', content: `Execute task: ${taskType}\nInput: ${input}` },
+]);
 ```
 
 ### API Route Integration Map
 
-| API Route | Agent(s) | AI Usage Pattern |
-|-----------|----------|-----------------|
-| `/api/agents` | All | CRUD operations (no AI call) |
-| `/api/plan-review` | Plan Review Agent | Persona-based plan analysis → structured JSON |
-| `/api/idea-canvas` | Market Researcher | Business idea validation → structured JSON |
-| `/api/pitch-deck` | Report Generator, Business Analyst | Slide generation + Q&A prediction → JSON arrays |
-| `/api/business-plan` | Business Analyst, Financial Advisor | Section-by-section generation → markdown text |
-| `/api/forecast` | Financial Advisor | Financial data analysis → prose insights |
-| `/api/reports` | Report Generator | Full report generation → structured content |
-| `/api/chat` | All (Copilot) | Conversational AI → prose responses |
+| API Route | Agent(s) | AI Usage Pattern | Provider |
+|-----------|----------|-----------------|----------|
+| `/api/agents` | All | CRUD operations (no AI call) | N/A |
+| `/api/plan-review` | Plan Review Agent | Persona-based plan analysis → structured JSON | All |
+| `/api/idea-canvas` | Market Researcher | Business idea validation → structured JSON | All |
+| `/api/pitch-deck` | Report Generator, Business Analyst | Slide generation + Q&A prediction → JSON arrays | All |
+| `/api/business-plan` | Business Analyst, Financial Advisor | Section-by-section generation → markdown text | All |
+| `/api/forecast` | Financial Advisor | Financial data analysis → prose insights | All |
+| `/api/reports` | Report Generator | Full report generation → structured content | All |
+| `/api/chat` | All (Copilot) | Conversational AI → prose responses | All |
+| `/api/skills/execute` | Skills Engine | Skill execution → varied | All |
+| `/api/openclaw/*` | OpenClaw Delegates | Gateway AI responses → channel messages | All |
 
 ### Prompt Engineering Patterns
 
@@ -1402,7 +1547,300 @@ fetch('http://localhost:3030/api/test');
 
 ---
 
-## 10. Error Handling & Recovery
+## 10. OpenClaw Delegates
+
+The OpenClaw Multi-Channel Gateway has its own agent/delegate architecture separate from (but complementary to) the core Agent Console agents. OpenClaw delegates are optimized for conversational interactions across messaging channels.
+
+### Delegate Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    OPENCLAW DELEGATE SYSTEM                          │
+│                                                                      │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────────────┐   │
+│  │ Business      │  │ Financial     │  │ Research Agent        │   │
+│  │ Analyst       │  │ Advisor       │  │                       │   │
+│  │ (analysis)    │  │ (financial)   │  │ (research)            │   │
+│  └───────┬───────┘  └───────┬───────┘  └───────────┬───────────┘   │
+│          │                  │                       │               │
+│  ┌───────┴──────────────────┴───────────────────────┴───────────┐  │
+│  │              OpenClaw Delegate Router                         │  │
+│  │    (Intent Classification · Channel Routing · SOUL.md)       │  │
+│  └───────┬──────────────────┬───────────────────────┬───────────┘  │
+│          │                  │                       │               │
+│  ┌───────┴───────┐  ┌──────┴────────┐  ┌───────────┴──────────┐   │
+│  │ Plan Review   │  │ Support       │  │ Support Delegate     │   │
+│  │ Agent         │  │ Delegate      │  │ Tier 1               │   │
+│  │ (review)      │  │ (support)     │  │ (support_t1)         │   │
+│  └───────────────┘  └───────────────┘  └──────────────────────┘   │
+│                                                                      │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │              Finance Bot Tier 2 (finance_t2)                  │  │
+│  │              Complex financial queries, deep analysis          │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │              SOUL.md Personality Engine                        │  │
+│  │              Bilingual EN/MS · ASEAN SME focus                │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Delegate Roster
+
+| # | Delegate | Type | Channel Affinity | Specialization |
+|---|----------|------|-----------------|----------------|
+| 1 | **Business Analyst** | `analysis` | All channels | Market analysis, KPI monitoring, competitive intelligence |
+| 2 | **Financial Advisor** | `financial` | Slack, WebChat | Revenue forecasting, DSCR calculation, financial planning |
+| 3 | **Research Agent** | `research` | Telegram, Discord | Market data collection, citation verification |
+| 4 | **Plan Review Agent** | `review` | Slack, WebChat | Lender-grade plan review with persona-based analysis |
+| 5 | **Support Delegate** | `support` | WhatsApp, Signal | Customer support, FAQ handling, escalation |
+| 6 | **Finance Bot Tier 2** | `finance_t2` | WebChat, Slack | Complex financial queries, deep analysis, Monte Carlo simulation |
+| 7 | **Support Agent Tier 1** | `support_t1` | WhatsApp, Telegram | First-line support, triage, routing to Tier 2 |
+
+### Delegate Routing Logic
+
+```typescript
+// Intent-based delegate routing
+function routeToDelegate(
+  message: string,
+  channel: string
+): string {
+  const intent = classifyIntent(message);
+
+  // Financial queries → Financial Advisor or Finance Bot Tier 2
+  if (intent === 'financial_query') {
+    if (isComplexFinancial(message)) return 'finance_t2';
+    return 'financial';
+  }
+
+  // Plan review requests → Plan Review Agent
+  if (intent === 'plan_review') return 'review';
+
+  // Research queries → Research Agent
+  if (intent === 'research') return 'research';
+
+  // Support queries → Support routing
+  if (intent === 'support') {
+    if (isComplexSupport(message)) return 'support';
+    return 'support_t1';
+  }
+
+  // Default → Business Analyst
+  return 'analysis';
+}
+```
+
+### Delegate vs Core Agent Differences
+
+| Aspect | Core Agents | OpenClaw Delegates |
+|--------|------------|-------------------|
+| **Interface** | Web UI (Agent Console) | Messaging channels |
+| **Context** | Full business plan data | Conversation history |
+| **Memory** | AgentMemory (persistent) | GatewayConversation (session) |
+| **Personality** | Task-specific system prompt | SOUL.md personality |
+| **Response Format** | Structured JSON / markdown | Channel-native formatting |
+| **Language** | English only | Bilingual EN/MS |
+
+---
+
+## 11. Skills System Agents
+
+The Skills System provides 30+ built-in capabilities that can be executed by both core agents and OpenClaw delegates.
+
+### Skills Execution by Agents
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    SKILLS EXECUTION FLOW                           │
+│                                                                   │
+│  ┌──────────┐     ┌──────────────┐     ┌──────────────┐         │
+│  │  Agent /  │────▶│  Skills      │────▶│  Skill       │         │
+│  │  Delegate │     │  Router      │     │  Execution   │         │
+│  │  Request  │     │              │     │  Engine      │         │
+│  └──────────┘     └──────┬───────┘     └──────┬───────┘         │
+│                          │                     │                  │
+│                   ┌──────┴───────┐     ┌──────┴───────┐         │
+│                   │ Skill Match  │     │  Provider    │         │
+│                   │ & Validation │     │  Adapter     │         │
+│                   └──────────────┘     └──────────────┘         │
+│                                                                 │
+│  30+ Built-in Skills:                                            │
+│  ├─ ASR · VLM · TTS · Charts · XLSX · PDF · PPT · DOCX        │
+│  ├─ Web Search · Page Reader · Image Generation                  │
+│  ├─ AMiner Search · Daily Papers · Finance API                   │
+│  └─ Skill Creator · Skill Vetter · Fullstack Dev                │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Built-in Skills Available to Agents
+
+| Category | Skills | Typical Agent Users |
+|----------|--------|-------------------|
+| **AI / ML** | ASR, VLM, TTS | All agents (via OpenClaw) |
+| **Document** | PDF, DOCX, XLSX, PPT | Report Generator, Support Delegate |
+| **Visualization** | Charts (bar, line, pie, scatter, heatmap, radar) | Business Analyst, Financial Advisor |
+| **Web** | Web Search, Page Reader | Research Agent, Browser Agent |
+| **Academic** | AMiner Search, Daily Papers | Research Agent |
+| **Development** | Skill Creator, Skill Vetter, Fullstack Dev | Technical workflows |
+| **Financial** | Finance API | Financial Advisor, Finance Bot Tier 2 |
+| **Media** | Image Generation, Video Understanding | Report Generator, Support Delegate |
+
+### Auto-Learn Capability
+
+The auto-learn system creates new skills from agent interactions:
+
+1. An agent encounters a task that doesn't match existing skills
+2. The Skills Router flags the task as "unmatched"
+3. The Auto-Learn module analyzes the task and generates a skill definition
+4. The new skill is saved with input/output schema
+5. Future agents can invoke the learned skill directly
+
+```typescript
+// Auto-learn creates a new skill from an unmatched agent task
+interface AutoLearnResult {
+  skillId: string;
+  name: string;
+  description: string;
+  inputSchema: JSONSchema;
+  outputSchema: JSONSchema;
+  confidence: number;  // 0-1, based on how well the AI inferred the pattern
+}
+```
+
+---
+
+## 12. Gateway Agent Communication
+
+### Channel-to-Agent Communication Flow
+
+The OpenClaw gateway enables bidirectional communication between messaging channels and the agent system:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                  GATEWAY COMMUNICATION FLOW                        │
+│                                                                   │
+│  ┌──────────┐     ┌──────────────┐     ┌──────────────┐         │
+│  │ WhatsApp  │────▶│              │     │              │         │
+│  │ Webhook   │     │  Gateway     │────▶│  Delegate    │         │
+│  └──────────┘     │  Router      │     │  Router      │         │
+│  ┌──────────┐     │              │     └──────┬───────┘         │
+│  │ Telegram  │────▶│              │            │                  │
+│  │ Webhook   │     │              │     ┌──────┴───────┐         │
+│  └──────────┘     │              │     │  SOUL.md     │         │
+│  ┌──────────┐     │              │     │  + AI Call   │         │
+│  │ Discord   │────▶│              │     │  (Provider)  │         │
+│  │ Webhook   │     └──────────────┘     └──────┬───────┘         │
+│  └──────────┘                                  │                  │
+│  ┌──────────┐     ┌──────────────┐     ┌──────┴───────┐         │
+│  │ Slack     │────▶│ Webhook      │◀────│  AI Response │         │
+│  │ Events    │     │ Handlers     │     │  Generation  │         │
+│  └──────────┘     └──────┬───────┘     └──────────────┘         │
+│                          │                                        │
+│                   ┌──────┴───────┐                               │
+│                   │  Channel     │                               │
+│                   │  Reply       │                               │
+│                   │  (WhatsApp/  │                               │
+│                   │   Telegram/  │                               │
+│                   │   Discord/   │                               │
+│                   │   Slack)     │                               │
+│                   └──────────────┘                               │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Telegram Webhook Flow
+
+```typescript
+// 1. Telegram sends webhook to /api/webhooks/telegram
+POST /api/webhooks/telegram
+Body: { update_id, message: { chat: { id }, text, from: { id, username } } }
+
+// 2. Gateway processes the message
+const history = await getConversationHistory('telegram', chatId);
+const soulPrompt = getSoulPrompt();
+const delegate = routeToDelegate(text, 'telegram');
+
+// 3. AI generates response
+const response = await getAIResponse([
+  { role: 'system', content: soulPrompt },
+  ...history.messages,
+  { role: 'user', content: text },
+], { delegate, channel: 'telegram' });
+
+// 4. Store and reply
+await storeMessage('telegram', chatId, 'user', text);
+await storeMessage('telegram', chatId, 'assistant', response);
+await sendTelegramMessage(chatId, response);
+```
+
+### WhatsApp Webhook Flow
+
+```typescript
+// 1. WhatsApp sends webhook to /api/webhooks/whatsapp
+POST /api/webhooks/whatsapp
+Body: { entry: [{ changes: [{ value: { messages: [{ from, text }] } }] }] }
+
+// 2. Gateway processes the message
+const history = await getConversationHistory('whatsapp', phoneNumber);
+const soulPrompt = getSoulPrompt();
+const delegate = routeToDelegate(text, 'whatsapp');
+
+// 3. AI generates response
+const response = await getAIResponse([
+  { role: 'system', content: soulPrompt },
+  ...history.messages,
+  { role: 'user', content: text },
+], { delegate, channel: 'whatsapp' });
+
+// 4. Store and reply
+await storeMessage('whatsapp', phoneNumber, 'user', text);
+await storeMessage('whatsapp', phoneNumber, 'assistant', response);
+await sendWhatsAppMessage(phoneNumber, response);
+```
+
+### Conversation Persistence via GatewayConversation Model
+
+All conversations across channels are persisted for context continuity:
+
+```prisma
+model GatewayConversation {
+  id             String   @id @default(cuid())
+  channel        String   // whatsapp | telegram | discord | webchat | signal | slack
+  channelUserId  String   // User ID on the channel
+  messages       String   // JSON array of { role, content, timestamp }
+  delegate       String?  // Assigned delegate type
+  lastMessageAt  DateTime @default(now())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([channel, channelUserId, organizationId])
+}
+```
+
+### Multi-Channel Context
+
+When the same user interacts across multiple channels, the system maintains separate conversation threads per channel but shares the underlying memory context:
+
+```typescript
+// User "Ahmad" on WhatsApp and Telegram
+// WhatsApp conversation: Independent thread with WhatsApp-specific formatting
+// Telegram conversation: Independent thread with Telegram-specific formatting
+// Shared context: AgentMemory with type 'user' provides cross-channel continuity
+
+const crossChannelContext = await db.agentMemory.findMany({
+  where: {
+    organizationId,
+    type: 'user',
+    category: 'Cross-Channel Preferences',
+  },
+});
+```
+
+---
+
+## 13. Error Handling & Recovery
 
 ### Error Classification
 
@@ -1525,7 +1963,7 @@ const RETRY_CONFIG = {
 
 ---
 
-## 11. Performance Considerations
+## 14. Performance Considerations
 
 ### AI Call Optimization
 
@@ -1612,7 +2050,7 @@ const MEMORY_LIMITS = {
 
 ---
 
-## 12. Future Agent Capabilities
+## 15. Future Agent Capabilities
 
 ### Planned Agent Expansions
 

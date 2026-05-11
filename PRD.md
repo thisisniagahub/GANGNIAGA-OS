@@ -1,7 +1,7 @@
 # GangNiaga AI OS — Product Requirements Document
 
-> **Version:** 1.0.0  
-> **Last Updated:** January 2025  
+> **Version:** v0.3.0  
+> **Last Updated:** March 2025  
 > **Status:** Active Development  
 > **Author:** GangNiaga Product Team  
 
@@ -63,6 +63,11 @@
 │  │  │Work- │ │Mem-  │ │Pitch │ │Re-   │ │Plan  │ │Co-   │   │ │
 │  │  │flows │ │ory   │ │Deck  │ │ports │ │vAct  │ │pilot │   │ │
 │  │  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘ └──────┘   │ │
+│  │  ┌──────────────────────────────────────────────────────┐   │ │
+│  │  │  OpenClaw Multi-Channel Gateway (Module 15)          │   │ │
+│  │  │  WhatsApp │ Telegram │ Discord │ WebChat │ Signal    │   │ │
+│  │  │  Slack │ Plugin System │ Delegates │ SOUL.md         │   │ │
+│  │  └──────────────────────────────────────────────────────┘   │ │
 │  └──────────────────────────┬─────────────────────────────────┘ │
 │                             │                                    │
 │  ┌──────────────────────────┴─────────────────────────────────┐ │
@@ -74,18 +79,34 @@
 │  └──────────────────────────┬─────────────────────────────────┘ │
 │                             │                                    │
 │  ┌──────────────────────────┴─────────────────────────────────┐ │
-│  │                      API Layer (9 Routes)                   │ │
+│  │                   API Layer (41 Routes)                     │ │
 │  │  /chat │ /business-plan │ /agents │ /dashboard │ /forecast │ │
 │  │  /reports │ /idea-canvas │ /plan-review │ /pitch-deck      │ │
+│  │  /openclaw/* │ /skills/* │ /gateway/* │ /webhooks/*        │ │
+│  │  /soul │ /delegates │ /automation │ /channels              │ │
 │  └──────────────────────────┬─────────────────────────────────┘ │
 │                             │                                    │
 │  ┌──────────────────────────┴─────────────────────────────────┐ │
-│  │                   Backend Services                          │ │
-│  │  ┌──────────────┐  ┌────────────────┐  ┌───────────────┐  │ │
-│  │  │ z-ai-web-dev │  │  Prisma ORM    │  │  SQLite       │  │ │
-│  │  │ SDK (AI)     │  │  (Database)    │  │  (Storage)    │  │ │
-│  │  └──────────────┘  └────────────────┘  └───────────────┘  │ │
+│  │              Multi-Provider AI Layer                        │ │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐   │ │
+│  │  │ ZAI SDK      │  │ OpenAI API   │  │ OpenRouter     │   │ │
+│  │  │ (dev)        │  │ (prod)       │  │ (Vercel)       │   │ │
+│  │  └──────────────┘  └──────────────┘  │ 4 keys round-  │   │ │
+│  │                                      │ robin           │   │ │
+│  │                                      └────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                   Backend Services                        │   │
+│  │  ┌──────────────┐  ┌────────────────────────────────┐   │   │
+│  │  │ Prisma ORM   │  │  Supabase PostgreSQL (Primary) │   │   │
+│  │  │ (Database)   │  │  + SQLite (Local Dev)          │   │   │
+│  │  └──────────────┘  └────────────────────────────────┘   │   │
+│  │  ┌──────────────┐  ┌────────────────────────────────┐   │   │
+│  │  │ Skills Engine│  │  Gateway Helpers (400 lines)    │   │   │
+│  │  │ (30+ skills) │  │  lib/gateway.ts                │   │   │
+│  │  └──────────────┘  └────────────────────────────────┘   │   │
+│  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -94,9 +115,10 @@
 
 | Metric | Value |
 |--------|-------|
-| Core Modules | 14 |
-| API Routes | 9 |
-| Database Models | 15 |
+| Core Modules | 15 |
+| API Routes | 41 |
+| Database Models | 27 |
+| AI Providers | 3 (ZAI / OpenAI / OpenRouter) |
 | AI Agents | 8 |
 | UI Components (shadcn/ui) | 50+ |
 | Proposal Types | 6 |
@@ -105,6 +127,8 @@
 | Output Formats | 4 (PDF, DOCX, XLSX, CSV) |
 | Citation Sources | 50+ |
 | Geography Filters | 3 (MY, SEA, Global) |
+| Messaging Channels | 6 (WhatsApp, Telegram, Discord, WebChat, Signal, Slack) |
+| Skills | 30+ |
 
 ---
 
@@ -898,6 +922,230 @@ Organization configuration, integration management, and user preferences.
 | **Preferences** | Default currency, date format, theme (dark/light), language |
 | **Notifications** | Email alerts, variance threshold, report schedules |
 | **Data Management** | Export all data, import from CSV, backup/restore |
+
+---
+
+### Module 15: OpenClaw Multi-Channel Gateway
+
+A multi-channel messaging gateway that connects GangNiaga AI to 6 messaging platforms with a plugin system, delegate architecture, SOUL.md personality, and automation scheduling.
+
+#### Supported Channels
+
+| Channel | Key | Protocol | Status | Features |
+|---------|-----|----------|--------|----------|
+| **WhatsApp** | `whatsapp` | Webhook API | ✅ Active | Rich messages, quick replies, media |
+| **Telegram** | `telegram` | Bot API | ✅ Active | Inline keyboards, commands, groups |
+| **Discord** | `discord` | Gateway API | ✅ Active | Slash commands, embeds, threads |
+| **WebChat** | `webchat` | WebSocket | ✅ Active | Real-time chat, typing indicators |
+| **Signal** | `signal` | signal-cli | ⚠️ Beta | Encrypted messaging, groups |
+| **Slack** | `slack` | Events API | ✅ Active | Blocks, shortcuts, modals |
+
+#### Plugin System (Built-in Tools)
+
+| Plugin | Key | Description | Input | Output |
+|--------|-----|-------------|-------|--------|
+| **Business Plan Generator** | `generate_business_plan` | Generate complete business plans via chat | Industry, type, company info | 21-section business plan |
+| **Idea Validator** | `validate_idea` | Validate business ideas with scoring | Idea description, problem, solution | Validation report with scores |
+| **Plan Reviewer** | `review_plan` | Lender-grade plan review | Plan ID, persona type | Review scores + discrepancies |
+| **Pitch Deck Creator** | `generate_pitch_deck` | Generate investor/bank/grant pitch decks | Plan ID, template type | Slide deck + Q&A |
+| **Financial Forecaster** | `financial_forecast` | AI-powered financial projections | Revenue data, assumptions | Forecast with confidence bands |
+| **Market Researcher** | `research_market` | Market data and citation gathering | Industry, geography, query | Market data + citations |
+
+#### Delegate System
+
+| Delegate | Key | Type | Specialization |
+|----------|-----|------|----------------|
+| **Business Analyst** | `analysis` | analysis | Market analysis, KPI monitoring, competitive intelligence |
+| **Financial Advisor** | `financial` | financial | Revenue forecasting, DSCR calculation, financial planning |
+| **Research Agent** | `research` | research | Market data collection, citation verification |
+| **Plan Review Agent** | `review` | review | Lender-grade plan review with persona analysis |
+| **Support Delegate** | `support` | support | Customer support, FAQ handling, escalation |
+| **Finance Bot Tier 2** | `finance_t2` | financial | Complex financial queries, deep analysis |
+| **Support Agent Tier 1** | `support_t1` | support | First-line support, triage, routing |
+
+#### SOUL.md Personality System
+
+The OpenClaw gateway uses a SOUL.md file to define the AI personality:
+
+```
+# GangNiaga AI — SOUL.md
+
+## Identity
+You are GangNiaga AI, an autonomous business operating system designed for
+ASEAN SMEs. You speak with authority on business planning, financial intelligence,
+and market strategy.
+
+## Language
+- Primary: English (EN)
+- Secondary: Bahasa Melayu (MS) — switch naturally when user speaks BM
+- Always bilingual-capable; respond in the language the user uses
+
+## Personality
+- Professional but approachable — like a seasoned business consultant
+- Data-driven — always cite numbers and sources
+- ASEAN-first — reference regional context (MY, SG, ID, TH markets)
+- Action-oriented — suggest next steps, not just information
+
+## Boundaries
+- Stay within business planning, financial analysis, market research
+- Never give legal or tax advice
+- Always flag when uncertain — never fabricate data
+- Respect privacy — never share user data
+
+## Tone by Channel
+- WhatsApp: Concise, bullet-point friendly
+- Telegram: Detailed, markdown-enabled
+- Discord: Community-oriented, collaborative
+- Slack: Professional, structured
+- WebChat: Full-featured, interactive
+- Signal: Private, encrypted-aware
+```
+
+#### Automation Scheduling
+
+| Task | Schedule | Delegate | Description |
+|------|----------|----------|-------------|
+| **KPI Digest** | Daily 8:00 AM | Business Analyst | Send daily KPI summary to connected channels |
+| **Weekly Report** | Monday 9:00 AM | Financial Advisor | Generate and distribute weekly financial report |
+| **Market Scan** | Daily 6:00 AM | Research Agent | Scan market trends and send alerts |
+| **Plan Check** | Friday 5:00 PM | Plan Review Agent | Review active plans for completeness |
+
+#### Webhook Integrations
+
+| Webhook | Event | Action |
+|---------|-------|--------|
+| `POST /api/webhooks/telegram` | Incoming Telegram message | Parse command → delegate → AI response → reply |
+| `POST /api/webhooks/whatsapp` | Incoming WhatsApp message | Parse message → delegate → AI response → reply |
+| `POST /api/webhooks/discord` | Discord interaction | Parse command → delegate → AI response → reply |
+| `POST /api/webhooks/slack` | Slack event | Parse event → delegate → AI response → reply |
+
+#### Conversation Persistence
+
+All conversations across channels are persisted using the `GatewayConversation` model:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | String | Unique conversation ID |
+| `channel` | String | Channel type (whatsapp, telegram, etc.) |
+| `channelUserId` | String | User ID on the channel |
+| `messages` | JSON | Array of message objects |
+| `delegate` | String? | Assigned delegate |
+| `lastMessageAt` | DateTime | Last message timestamp |
+| `organizationId` | String | Owning organization |
+
+---
+
+## Skills System
+
+### Overview
+
+The Skills System provides 30+ built-in capabilities that can be executed by agents or triggered via the OpenClaw gateway. Skills are composable, auto-documented, and support an auto-learn capability for creating new skills from user interactions.
+
+### Built-in Skills
+
+| Category | Skills |
+|----------|--------|
+| **AI / ML** | ASR (Speech-to-Text), VLM (Vision Language Model), TTS (Text-to-Speech) |
+| **Document Generation** | PDF, DOCX, XLSX, PPT |
+| **Data Visualization** | Charts (bar, line, pie, scatter, heatmap, radar, etc.) |
+| **Web Intelligence** | Web Search, Page Reader, Web Shader Extractor |
+| **Communication** | ASR Transcription, VLM Image Analysis |
+| **Academic** | AMiner Search, Daily Paper Recommendations |
+| **Development** | Skill Creator, Skill Vetter, Fullstack Dev |
+| **Financial** | Finance API, Market Data |
+| **Media** | Image Generation, Video Understanding |
+
+### Skills API Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/skills/list` | GET | List all available skills |
+| `/api/skills/execute` | POST | Execute a skill with parameters |
+| `/api/skills/learn` | POST | Auto-learn a new skill from interaction |
+| `/api/skills/:id` | GET | Get skill details and documentation |
+
+### Execution Engine
+
+```typescript
+interface SkillExecution {
+  skillId: string;
+  input: Record<string, unknown>;
+  delegate?: string;        // Optional delegate assignment
+  channel?: string;         // Optional channel context
+  callbackUrl?: string;     // Optional webhook for async results
+}
+
+interface SkillResult {
+  success: boolean;
+  output: unknown;
+  duration: number;
+  tokensUsed?: number;
+}
+```
+
+### Auto-Learn Capability
+
+The auto-learn system can create new skills by observing user interactions:
+
+1. User performs a novel action via any channel
+2. System detects the action doesn't match existing skills
+3. AI generates a skill definition with input/output schema
+4. Skill is saved and available for future execution
+5. Skill can be refined through continued usage
+
+---
+
+## AI Provider System
+
+### Multi-Provider Adapter
+
+GangNiaga AI OS supports three AI providers with environment-based selection:
+
+| Provider | Environment | Use Case | Default Model |
+|----------|-------------|----------|---------------|
+| **ZAI (z-ai-web-dev-sdk)** | Development | Local development, testing | z-ai default |
+| **OpenAI** | Production | High-reliability production workloads | gpt-4o |
+| **OpenRouter** | Vercel | Scalable deployment with model flexibility | openrouter/owl-alpha |
+
+### OpenRouter Configuration
+
+OpenRouter supports up to 4 API keys with round-robin distribution:
+
+```typescript
+interface OpenRouterConfig {
+  apiKeys: string[];          // Up to 4 API keys
+  currentKeyIndex: number;    // Round-robin pointer
+  defaultModel: 'openrouter/owl-alpha';
+  baseUrl: 'https://openrouter.ai/api/v1';
+}
+
+// Round-robin key selection
+function getNextKey(): string {
+  const key = config.apiKeys[config.currentKeyIndex];
+  config.currentKeyIndex = (config.currentKeyIndex + 1) % config.apiKeys.length;
+  return key;
+}
+```
+
+### AI Capabilities
+
+| Capability | ZAI | OpenAI | OpenRouter |
+|-----------|-----|--------|------------|
+| **Chat Completions** | ✅ | ✅ | ✅ |
+| **Vision (VLM)** | ✅ | ✅ | ✅ |
+| **ASR (Speech-to-Text)** | ✅ | ✅ | ❌ |
+| **TTS (Text-to-Speech)** | ✅ | ✅ | ❌ |
+| **Image Generation** | ✅ | ✅ | ✅ |
+| **Web Search** | ✅ | ❌ | ✅ |
+| **Page Reader** | ✅ | ❌ | ✅ |
+
+### Default Model Configuration
+
+The default model for production is `openrouter/owl-alpha`, which provides:
+- Optimized for business planning and financial analysis
+- Strong multi-language support (EN, MS, and other ASEAN languages)
+- Cost-effective for high-volume operations
+- Compatible with the OpenRouter round-robin key system
 
 ---
 

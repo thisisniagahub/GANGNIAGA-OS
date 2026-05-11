@@ -176,11 +176,14 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
-  type?: 'text' | 'image' | 'search' | 'skill';
+  type?: 'text' | 'image' | 'search' | 'skill' | 'code' | 'tool_result' | 'file_edit' | 'action';
   imageBase64?: string;
   searchResults?: SearchResultItem[];
   skillName?: string;
   isPlaying?: boolean;
+  codeBlock?: { language: string; code: string; filename?: string };
+  toolResult?: { tool: string; status: 'running' | 'success' | 'error'; input?: string; output?: string; duration?: number };
+  fileEdit?: { path: string; diff?: string; content?: string };
 }
 
 export interface SearchResultItem {

@@ -29,6 +29,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+interface SidebarProps {
+  isMobile?: boolean;
+  onCloseMobile?: () => void;
+}
+
 interface NavItem {
   id: ModuleId;
   label: string;
@@ -89,7 +94,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProps) {
   const { activeModule, setActiveModule, sidebarCollapsed, toggleSidebar, toggleCopilot, plans, agents, varianceAlerts, openclawChannels } = useAppStore();
 
   // Compute badge counts from store
@@ -111,23 +116,43 @@ export default function Sidebar() {
     'openclaw': 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
   };
 
+  // On mobile, the sidebar is always "expanded" (never collapsed)
+  const collapsed = isMobile ? false : sidebarCollapsed;
+
+  const handleNavClick = (id: ModuleId) => {
+    setActiveModule(id);
+    if (isMobile && onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
+  const handleCopilotClick = () => {
+    toggleCopilot();
+    if (isMobile && onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
   return (
     <TooltipProvider delayDuration={0}>
       <motion.aside
-        animate={{ width: sidebarCollapsed ? 68 : 240 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        animate={isMobile ? undefined : { width: collapsed ? 68 : 240 }}
+        transition={isMobile ? undefined : { type: 'spring', damping: 25, stiffness: 300 }}
         className={cn(
-          'h-screen bg-card/80 backdrop-blur-xl border-r border-border flex flex-col shrink-0 overflow-hidden',
-          'relative z-40'
+          'bg-card/80 backdrop-blur-xl border-r border-border flex flex-col shrink-0 overflow-hidden',
+          isMobile
+            ? 'h-full w-[280px]'
+            : 'h-screen relative z-40',
+          isMobile && 'border-r-0'
         )}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-border">
+        <div className="flex items-center gap-3 px-4 h-14 border-b border-border">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
             <Zap className="h-5 w-5 text-white" />
           </div>
           <AnimatePresence>
-            {!sidebarCollapsed && (
+            {(!collapsed || isMobile) && (
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -149,7 +174,7 @@ export default function Sidebar() {
               <div key={group.title}>
                 {/* Section Header */}
                 <AnimatePresence>
-                  {!sidebarCollapsed && (
+                  {(!collapsed || isMobile) && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -165,8 +190,8 @@ export default function Sidebar() {
                   )}
                 </AnimatePresence>
 
-                {/* Collapsed: thin separator between groups */}
-                {sidebarCollapsed && groupIdx > 0 && (
+                {/* Collapsed: thin separator between groups (desktop only) */}
+                {collapsed && !isMobile && groupIdx > 0 && (
                   <div className="my-2 mx-2 border-t border-border/50" />
                 )}
 
@@ -181,17 +206,17 @@ export default function Sidebar() {
                     const button = (
                       <button
                         key={item.id}
-                        onClick={() => setActiveModule(item.id)}
+                        onClick={() => handleNavClick(item.id)}
                         className={cn(
-                          'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                          'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 min-h-[44px]',
                           'group relative',
                           isActive
                             ? 'bg-emerald-500/8 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-l-[3px] border-l-emerald-500 pl-[9px]'
                             : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
-                          sidebarCollapsed && 'justify-center px-0 border-l-0 pl-0'
+                          collapsed && !isMobile && 'justify-center px-0 border-l-0 pl-0'
                         )}
                       >
-                        {isActive && sidebarCollapsed && (
+                        {isActive && collapsed && !isMobile && (
                           <motion.div
                             layoutId="activeIndicatorCollapsed"
                             className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-emerald-500 to-teal-500"
@@ -203,7 +228,7 @@ export default function Sidebar() {
                           isActive ? item.accent : 'group-hover:text-foreground'
                         )} />
                         <AnimatePresence>
-                          {!sidebarCollapsed && (
+                          {(!collapsed || isMobile) && (
                             <motion.span
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
@@ -215,7 +240,7 @@ export default function Sidebar() {
                           )}
                         </AnimatePresence>
                         {/* Badge */}
-                        {badge > 0 && !sidebarCollapsed && (
+                        {badge > 0 && !collapsed && (
                           <span className={cn(
                             'ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center',
                             badgeColor
@@ -223,14 +248,14 @@ export default function Sidebar() {
                             {badge}
                           </span>
                         )}
-                        {/* Badge in collapsed mode - dot indicator */}
-                        {badge > 0 && sidebarCollapsed && (
+                        {/* Badge in collapsed mode (desktop) - dot indicator */}
+                        {badge > 0 && collapsed && !isMobile && (
                           <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-500" />
                         )}
                       </button>
                     );
 
-                    if (sidebarCollapsed) {
+                    if (collapsed && !isMobile) {
                       return (
                         <Tooltip key={item.id}>
                           <TooltipTrigger asChild>
@@ -256,9 +281,9 @@ export default function Sidebar() {
 
         {/* Bottom Section */}
         <div className="border-t border-border p-3 space-y-2">
-          {/* Quick Action Buttons */}
+          {/* Quick Action Buttons — always visible on mobile, only when expanded on desktop */}
           <AnimatePresence>
-            {!sidebarCollapsed && (
+            {(!collapsed || isMobile) && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -267,8 +292,8 @@ export default function Sidebar() {
                 className="flex gap-2"
               >
                 <button
-                  onClick={() => setActiveModule('business-plans')}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold
+                  onClick={() => handleNavClick('business-plans')}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold min-h-[36px]
                     bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20
                     hover:bg-emerald-500/20 transition-all"
                 >
@@ -276,8 +301,8 @@ export default function Sidebar() {
                   New Proposal
                 </button>
                 <button
-                  onClick={() => setActiveModule('idea-canvas')}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold
+                  onClick={() => handleNavClick('idea-canvas')}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold min-h-[36px]
                     bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20
                     hover:bg-amber-500/20 transition-all"
                 >
@@ -292,18 +317,18 @@ export default function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={toggleCopilot}
+                onClick={handleCopilotClick}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium',
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium min-h-[44px]',
                   'bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20',
                   'hover:from-emerald-500/20 hover:to-teal-500/20 transition-all',
                   'text-emerald-600 dark:text-emerald-400',
-                  sidebarCollapsed && 'justify-center px-0'
+                  collapsed && !isMobile && 'justify-center px-0'
                 )}
               >
                 <Sparkles className="h-[18px] w-[18px] shrink-0" />
                 <AnimatePresence>
-                  {!sidebarCollapsed && (
+                  {(!collapsed || isMobile) && (
                     <motion.span
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -315,7 +340,7 @@ export default function Sidebar() {
                   )}
                 </AnimatePresence>
                 {/* ⌘K Badge */}
-                {!sidebarCollapsed && (
+                {(!collapsed || isMobile) && (
                   <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-emerald-500/20 bg-emerald-500/5 px-1.5 font-mono text-[10px] font-medium text-emerald-500/70">
                     ⌘K
                   </kbd>
@@ -327,31 +352,33 @@ export default function Sidebar() {
             </TooltipContent>
           </Tooltip>
 
-          {/* Collapse Toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={toggleSidebar}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground',
-                  'hover:bg-accent/50 hover:text-foreground transition-all',
-                  sidebarCollapsed && 'justify-center px-0'
-                )}
-              >
-                {sidebarCollapsed ? (
-                  <ChevronRight className="h-4 w-4 shrink-0" />
-                ) : (
-                  <>
-                    <ChevronLeft className="h-4 w-4 shrink-0" />
-                    <span className="whitespace-nowrap">Collapse</span>
-                  </>
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="font-medium">
-              {sidebarCollapsed ? 'Expand' : 'Collapse'}
-            </TooltipContent>
-          </Tooltip>
+          {/* Collapse Toggle — hidden on mobile */}
+          {!isMobile && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggleSidebar}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground min-h-[44px]',
+                    'hover:bg-accent/50 hover:text-foreground transition-all',
+                    collapsed && 'justify-center px-0'
+                  )}
+                >
+                  {collapsed ? (
+                    <ChevronRight className="h-4 w-4 shrink-0" />
+                  ) : (
+                    <>
+                      <ChevronLeft className="h-4 w-4 shrink-0" />
+                      <span className="whitespace-nowrap">Collapse</span>
+                    </>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="font-medium">
+                {collapsed ? 'Expand' : 'Collapse'}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </motion.aside>
     </TooltipProvider>

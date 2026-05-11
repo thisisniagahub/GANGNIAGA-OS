@@ -3,12 +3,14 @@ import type { ModuleId, ChatMessage, KPIData, ChartDataPoint, AgentInfo, TaskInf
 
 interface AppState {
   activeModule: ModuleId;
-  setActiveModule: (module: ModuleId) => void;
+  setActiveModule: (module: ModuleId) => void;  // also closes mobile menu
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
   copilotOpen: boolean;
   toggleCopilot: () => void;
-  
+  mobileMenuOpen: boolean;
+  setMobileMenuOpen: (open: boolean) => void;
+
   // Chat
   chatMessages: ChatMessage[];
   addChatMessage: (msg: ChatMessage) => void;
@@ -139,11 +141,13 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   activeModule: 'dashboard',
-  setActiveModule: (module) => set({ activeModule: module }),
+  setActiveModule: (module) => set({ activeModule: module, mobileMenuOpen: false }),
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   copilotOpen: false,
   toggleCopilot: () => set((s) => ({ copilotOpen: !s.copilotOpen })),
+  mobileMenuOpen: false,
+  setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
   
   // Chat
   chatMessages: [

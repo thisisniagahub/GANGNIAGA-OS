@@ -1,18 +1,20 @@
 # GangNiaga AI OS — Database Schema Reference
 
-> **Version:** 0.2.0  
-> **ORM:** Prisma 6.x  
-> **Database:** SQLite (development) → PostgreSQL (production planned)  
+> **Version:** 0.3.0  
+> **ORM:** Prisma 6.x (local) + Supabase JS Client (production)  
+> **Database:** Dual — Supabase PostgreSQL (production) + SQLite (local fallback)  
 > **Schema File:** `prisma/schema.prisma`  
-> **Client Import:** `import { db } from '@/lib/db'`  
+> **Prisma Client Import:** `import { db } from '@/lib/db'`  
+> **Supabase Import:** `import { getSupabaseServer, isSupabaseAvailable } from '@/lib/supabase'`  
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [ER Diagram](#er-diagram)
-3. [Model Reference](#model-reference)
+2. [Dual-Database Architecture](#dual-database-architecture)
+3. [ER Diagram](#er-diagram)
+4. [Model Reference](#model-reference)
    - [User](#1-user)
    - [Organization](#2-organization)
    - [BusinessPlan](#3-businessplan)
@@ -29,17 +31,29 @@
    - [PitchDeck](#14-pitchdeck)
    - [Citation](#15-citation)
    - [Integration](#16-integration)
-4. [Schema Design Decisions](#schema-design-decisions)
-5. [JSON Field Patterns](#json-field-patterns)
-6. [Migration Notes](#migration-notes)
-7. [Index Strategy](#index-strategy)
-8. [Future Schema Changes](#future-schema-changes)
+   - [OpenClawChannel](#17-openclawchannel)
+   - [OpenClawGateway](#18-openclawgateway)
+   - [OpenClawPlugin](#19-openclawplugin)
+   - [OpenClawDelegate](#20-openclawdelegate)
+   - [OpenClawWebhook](#21-openclawwebhook)
+   - [OpenClawScheduledTask](#22-openclawscheduledtask)
+   - [OpenClawSoulConfig](#23-openclawsoulconfig)
+   - [GatewayConversation](#24-gatewayconversation)
+   - [Skill](#25-skill)
+   - [AgentMemoryV2](#26-agentmemoryv2)
+   - [ChatSession](#27-chatsession)
+5. [Schema Design Decisions](#schema-design-decisions)
+6. [JSON Field Patterns](#json-field-patterns)
+7. [Supabase Integration](#supabase-integration)
+8. [Migration Notes](#migration-notes)
+9. [Index Strategy](#index-strategy)
+10. [Future Schema Changes](#future-schema-changes)
 
 ---
 
 ## Overview
 
-The GangNiaga AI OS database consists of **16 Prisma models** organized around a central `Organization` entity. The schema follows a multi-tenant architecture where all business data is scoped to an organization. The current implementation uses SQLite for development simplicity, with a planned migration to PostgreSQL for production.
+The GangNiaga AI OS database consists of **27 Prisma models** organized around a central `Organization` entity. The schema follows a multi-tenant architecture where all business data is scoped to an organization. The system uses a dual-database architecture: **Supabase PostgreSQL** (primary, production) and **Prisma ORM with SQLite** (local development fallback).
 
 ### Model Categories
 
@@ -47,18 +61,90 @@ The GangNiaga AI OS database consists of **16 Prisma models** organized around a
 |----------|--------|---------|
 | **Identity** | User, Organization | Authentication, tenancy, and profile |
 | **Planning** | BusinessPlan, IdeaCanvas, PitchDeck | Business plan creation, idea validation, pitch decks |
-| **Intelligence** | AgentSession, AgentTask, AgentMemory, PlanReview | AI agent orchestration, memory, and review |
+| **Intelligence** | AgentSession, AgentTask, AgentMemory, AgentMemoryV2, PlanReview | AI agent orchestration, memory, and review |
 | **Financial** | Forecast, KPIData, PlanActual, Integration | Financial projections, KPIs, plan-vs-actual, accounting sync |
 | **Output** | Report, Citation | Report generation and source verification |
 | **Automation** | WorkflowRun | Workflow orchestration and scheduling |
+| **OpenClaw** | OpenClawChannel, OpenClawGateway, OpenClawPlugin, OpenClawDelegate, OpenClawWebhook, OpenClawScheduledTask, OpenClawSoulConfig | Multi-channel messaging, AI delegates, plugins, webhooks, automation, and personality config |
+| **Gateway** | GatewayConversation | Conversation persistence for messaging platforms |
+| **Skills** | Skill | Hermes-inspired skill registry and configuration |
+| **Chat** | ChatSession | Persistent chat sessions with memory snapshots |
 
 ### Statistics
 
-- **16 models** total
-- **~85 fields** across all models
-- **13 relations** (12 via Organization, 1 AgentSession → AgentTask)
-- **2 unique constraints** (User.email, Organization.slug)
-- **8 JSON string fields** (for flexible data storage in SQLite)
+- **27 models** total (up from 16 in v0.2.0)
+- **~150 fields** across all models (approximate scalar fields)
+- **24 relations** (23 via Organization, 1 AgentSession → AgentTask)
+- **4 unique constraints** (User.email, Organization.slug, Skill.name, Skill.slug)
+- **27 JSON string fields** (for flexible data storage in SQLite)
+
+---
+
+## Dual-Database Architecture
+
+GangNiaga AI OS uses a **dual-database pattern** to support both local development and production deployment:
+
+### Primary: Supabase PostgreSQL (Production)
+
+- **Used in:** Production (Vercel deployments)
+- **Connection:** REST API via `@supabase/supabase-js`
+- **Environment Variables:**
+  - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
+  - `SUPABASE_SERVICE_ROLE_KEY` — Server-side key (bypasses RLS)
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Client-side key (respects RLS)
+- **Schema:** 27 tables matching Prisma models, seeded with initial data
+- **Features:** JSONB columns, full-text search, Row Level Security (RLS), real-time subscriptions
+
+### Fallback: Prisma ORM with SQLite (Local Development)
+
+- **Used in:** Local development, offline mode
+- **Connection:** `DATABASE_URL="file:./db/custom.db"`
+- **Client:** `import { db } from '@/lib/db'`
+- **Schema:** Same 27 models in `prisma/schema.prisma`
+- **Sync:** `bun run db:push` to push schema changes
+
+### API Route Pattern
+
+All API routes follow a consistent **try-Supabase-first → fallback-to-Prisma** pattern:
+
+```typescript
+import { isSupabaseAvailable, getSupabaseServer } from '@/lib/supabase';
+import { db } from '@/lib/db';
+
+export async function GET() {
+  // Try Supabase first (production)
+  if (isSupabaseAvailable()) {
+    try {
+      const supabase = getSupabaseServer();
+      const { data, error } = await supabase
+        .from('table_name')
+        .select('*')
+        .eq('organizationId', orgId);
+      if (!error && data) return Response.json(data);
+    } catch (e) {
+      console.warn('Supabase query failed, falling back to Prisma:', e);
+    }
+  }
+
+  // Fallback to Prisma (local development)
+  const records = await db.modelName.findMany({
+    where: { organizationId: orgId },
+  });
+  return Response.json(records);
+}
+```
+
+### Key Differences Between Databases
+
+| Aspect | Supabase PostgreSQL | Prisma SQLite |
+|--------|--------------------|--------------| 
+| JSON fields | Native JSONB with indexing | JSON strings (require `JSON.parse()`) |
+| Vector search | pgvector support | Not supported |
+| Concurrent writes | Full ACID compliance | Single-writer lock |
+| RLS | Row Level Security policies | No row-level security |
+| Real-time | Built-in subscriptions | Not supported |
+| Migrations | Managed via Supabase dashboard | `prisma db push` |
+| Connection | REST API (HTTP) | Direct file access |
 
 ---
 
@@ -66,7 +152,8 @@ The GangNiaga AI OS database consists of **16 Prisma models** organized around a
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         GangNiaga AI OS — ER Diagram                        │
+│                    GangNiaga AI OS — ER Diagram (v0.3.0)                    │
+│                           27 Models • 4 Unique Keys                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                           ┌──────────────┐
@@ -95,71 +182,125 @@ The GangNiaga AI OS database consists of **16 Prisma models** organized around a
           │
     ┌─────┴──────────────────────────────────────────────────────────┐
     │                                                                │
-    │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-    │   │ BusinessPlan │  │   Forecast   │  │  AgentSession│       │
-    │   ├──────────────┤  ├──────────────┤  ├──────────────┤       │
-    │   │ id (PK)      │  │ id (PK)      │  │ id (PK)      │       │
-    │   │ title        │  │ name         │  │ name         │       │
-    │   │ status       │  │ type         │  │ type         │       │
-    │   │ execSummary  │  │ period       │  │ status       │       │
-    │   │ marketAnal.  │  │ data (JSON)  │  │ tasksComplete│       │
-    │   │ swotAnalysis │  └──────────────┘  │ lastActivity │       │
-    │   │ competitorA. │                    │ config (JSON)│       │
-    │   │ financialPlan│                    └──────┬───────┘       │
-    │   │ riskAnalysis │                           │               │
-    │   │ recommend.   │                    1:N    │               │
-    │   └──────────────┘                    ┌──────┴───────┐       │
-    │                                       │  AgentTask   │       │
-    │   ┌──────────────┐                    ├──────────────┤       │
-    │   │ AgentMemory  │                    │ id (PK)      │       │
-    │   ├──────────────┤                    │ sessionId(FK)│       │
-    │   │ id (PK)      │                    │ type         │       │
-    │   │ type         │                    │ status       │       │
-    │   │ category     │                    │ input        │       │
-    │   │ content      │                    │ output       │       │
-    │   │ embedding    │                    │ duration     │       │
-    │   └──────────────┘                    └──────────────┘       │
+    │  ── IDENTITY & PLANNING ──                                     │
     │                                                                │
     │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-    │   │ WorkflowRun  │  │   KPIData    │  │   Report     │       │
+    │   │ BusinessPlan │  │   Forecast   │  │  IdeaCanvas  │       │
     │   ├──────────────┤  ├──────────────┤  ├──────────────┤       │
     │   │ id (PK)      │  │ id (PK)      │  │ id (PK)      │       │
-    │   │ name         │  │ metric       │  │ title        │       │
-    │   │ type         │  │ value        │  │ type         │       │
-    │   │ status       │  │ prevValue    │  │ status       │       │
-    │   │ triggerType  │  │ target       │  │ content(JSON)│       │
-    │   │ steps (JSON) │  │ unit         │  │ format       │       │
-    │   └──────────────┘  │ period       │  └──────────────┘       │
-    │                     └──────────────┘                           │
+    │   │ title        │  │ name         │  │ title        │       │
+    │   │ status       │  │ type         │  │ status       │       │
+    │   │ execSummary  │  │ period       │  │ problem      │       │
+    │   │ marketAnal.  │  │ data (JSON)  │  │ solution     │       │
+    │   │ swotAnalysis │  └──────────────┘  │ risks (JSON) │       │
+    │   │ competitorA. │                    │ validScore   │       │
+    │   │ financialPlan│                    │ validRpt(J.) │       │
+    │   │ riskAnalysis │                    └──────────────┘       │
+    │   │ recommend.   │                                           │
+    │   └──────────────┘                    ┌──────────────┐       │
+    │                                       │  PitchDeck   │       │
+    │   ── INTELLIGENCE ──                  ├──────────────┤       │
+    │                                       │ id (PK)      │       │
+    │   ┌──────────────┐  ┌──────────────┐  │ title        │       │
+    │   │ AgentSession │  │  AgentTask   │  │ status       │       │
+    │   ├──────────────┤  ├──────────────┤  │ slides (JSON)│       │
+    │   │ id (PK)      │  │ id (PK)      │  │ questions(J.)│       │
+    │   │ name         │  │ sessionId(FK)│  └──────────────┘       │
+    │   │ type         │  │ type         │                           │
+    │   │ status       │  │ status       │  ── FINANCIAL ──         │
+    │   │ config (JSON)│  │ input/output │                           │
+    │   └──────┬───────┘  └──────────────┘  ┌──────────────┐       │
+    │          │ 1:N                         │   KPIData    │       │
+    │          └─────────────────────         ├──────────────┤       │
+    │                                │       │ id (PK)      │       │
+    │   ┌──────────────┐  ┌──────────────┐  │ metric       │       │
+    │   │ AgentMemory  │  │AgentMemoryV2 │  │ value/target │       │
+    │   ├──────────────┤  ├──────────────┤  │ period       │       │
+    │   │ id (PK)      │  │ id (PK)      │  └──────────────┘       │
+    │   │ type         │  │ type         │                           │
+    │   │ category     │  │ key          │  ┌──────────────┐       │
+    │   │ content      │  │ content      │  │  PlanActual  │       │
+    │   │ embedding    │  │ importance   │  ├──────────────┤       │
+    │   └──────────────┘  │ charLimit    │  │ id (PK)      │       │
+    │                     └──────────────┘  │ category     │       │
+    │   ┌──────────────┐                    │ plannedAmt   │       │
+    │   │ PlanReview   │                    │ actualAmt    │       │
+    │   ├──────────────┤                    │ variance     │       │
+    │   │ id (PK)      │                    └──────────────┘       │
+    │   │ planId       │                                           │
+    │   │ lenderPersona│  ── OUTPUT & AUTOMATION ──                │
+    │   │ narrScore    │                                           │
+    │   │ finScore     │  ┌──────────────┐  ┌──────────────┐       │
+    │   │ consistScore │  │   Report     │  │  Citation    │       │
+    │   │ overallScore │  ├──────────────┤  ├──────────────┤       │
+    │   │ disc.(JSON)  │  │ id (PK)      │  │ id (PK)      │       │
+    │   │ recom.(JSON) │  │ title        │  │ source       │       │
+    │   │ fullRpt(JSON)│  │ type         │  │ type         │       │
+    │   └──────────────┘  │ content(JSON)│  │ geography    │       │
+    │                     │ format       │  │ verified     │       │
+    │                     └──────────────┘  └──────────────┘       │
+    │                                                                │
+    │   ┌──────────────┐  ┌──────────────┐                          │
+    │   │ WorkflowRun  │  │ Integration  │                          │
+    │   ├──────────────┤  ├──────────────┤                          │
+    │   │ id (PK)      │  │ id (PK)      │                          │
+    │   │ name         │  │ type         │                          │
+    │   │ status       │  │ status       │                          │
+    │   │ triggerType  │  │ lastSync     │                          │
+    │   │ steps (JSON) │  │ config(JSON) │                          │
+    │   └──────────────┘  └──────────────┘                          │
+    │                                                                │
+    │  ── OPENCLAW ──                                                 │
     │                                                                │
     │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-    │   │ IdeaCanvas   │  │ PlanReview   │  │  PlanActual  │       │
+    │   │OCChannel     │  │ OCGateway    │  │ OCPlugin     │       │
     │   ├──────────────┤  ├──────────────┤  ├──────────────┤       │
     │   │ id (PK)      │  │ id (PK)      │  │ id (PK)      │       │
-    │   │ title        │  │ planId       │  │ category     │       │
-    │   │ status       │  │ status       │  │ period       │       │
-    │   │ problem      │  │ lenderPersona│  │ plannedAmt   │       │
-    │   │ solution     │  │ narrScore    │  │ actualAmt    │       │
-    │   │ targetMarket │  │ finScore     │  │ variance     │       │
-    │   │ revenueModel │  │ consistScore │  │ variance%    │       │
-    │   │ compEdge     │  │ overallScore │  │ source       │       │
-    │   │ risks (JSON) │  │ disc.(JSON)  │  └──────────────┘       │
-    │   │ validScore   │  │ recom.(JSON) │                           │
-    │   │ validRpt(JSON)│  │ fullRpt(JSON)│  ┌──────────────┐       │
-    │   └──────────────┘  └──────────────┘  │ Integration │       │
-    │                                       ├──────────────┤       │
-    │   ┌──────────────┐  ┌──────────────┐  │ id (PK)      │       │
-    │   │  PitchDeck   │  │  Citation    │  │ type         │       │
-    │   ├──────────────┤  ├──────────────┤  │ status       │       │
-    │   │ id (PK)      │  │ id (PK)      │  │ lastSync     │       │
-    │   │ title        │  │ source       │  │ syncFrequency│       │
-    │   │ status       │  │ url          │  │ config(JSON) │       │
-    │   │ planId       │  │ type         │  └──────────────┘       │
-    │   │ templateType │  │ geography    │                           │
-    │   │ slides (JSON)│  │ datePublished│                           │
-    │   │ slideCount   │  │ dataPoint    │                           │
-    │   │ questions(J.)│  │ verified     │                           │
-    │   └──────────────┘  └──────────────┘                           │
+    │   │ type         │  │ status       │  │ name         │       │
+    │   │ name         │  │ bindHost     │  │ version      │       │
+    │   │ status       │  │ bindPort     │  │ status       │       │
+    │   │ config (JSON)│  │ config (JSON)│  │ capabilities │       │
+    │   │ messageCount │  │ uptime       │  │ config (JSON)│       │
+    │   └──────────────┘  └──────────────┘  └──────────────┘       │
+    │                                                                │
+    │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+    │   │ OCDelegate   │  │ OCWebhook    │  │OCScheduled   │       │
+    │   ├──────────────┤  ├──────────────┤  ├──────────────┤       │
+    │   │ id (PK)      │  │ id (PK)      │  │ id (PK)      │       │
+    │   │ name         │  │ name         │  │ name         │       │
+    │   │ email        │  │ url          │  │ cronExpress. │       │
+    │   │ tier         │  │ events(JSON) │  │ status       │       │
+    │   │ channels(J.) │  │ secret       │  │ lastRun      │       │
+    │   │ standingOrd. │  │ headers(J.)  │  │ runCount     │       │
+    │   └──────────────┘  └──────────────┘  └──────────────┘       │
+    │                                                                │
+    │   ┌──────────────┐                                             │
+    │   │OCSoulConfig  │                                             │
+    │   ├──────────────┤                                             │
+    │   │ id (PK)      │                                             │
+    │   │ personality   │                                             │
+    │   │ tone          │                                             │
+    │   │ language      │                                             │
+    │   │ specialty     │                                             │
+    │   │ greeting      │                                             │
+    │   │ rules (JSON)  │                                             │
+    │   └──────────────┘                                             │
+    │                                                                │
+    │  ── GATEWAY, SKILLS & CHAT ──                                  │
+    │                                                                │
+    │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+    │   │ Gateway      │  │    Skill     │  │ ChatSession  │       │
+    │   │ Conversation │  │              │  │              │       │
+    │   ├──────────────┤  ├──────────────┤  ├──────────────┤       │
+    │   │ id (PK)      │  │ id (PK)      │  │ id (PK)      │       │
+    │   │ platform     │  │ name (UQ)    │  │ title        │       │
+    │   │ platformUser │  │ slug (UQ)    │  │ platform     │       │
+    │   │ direction    │  │ category     │  │ messages(J.) │       │
+    │   │ content      │  │ content      │  │ memorySnap.  │       │
+    │   │ metadata(J.) │  │ tags (JSON)  │  │ soulSnapshot │       │
+    │   └──────────────┘  │ status       │  │ skillsUsed   │       │
+    │                     │ autoLearn    │  │ status       │       │
+    │                     └──────────────┘  └──────────────┘       │
     │                                                                │
     └────────────────────────────────────────────────────────────────┘
 
@@ -167,7 +308,8 @@ Legend:
   PK  = Primary Key (CUID)
   FK  = Foreign Key
   UQ  = Unique Constraint
-  JSON = Stored as JSON string in SQLite
+  JSON = Stored as JSON string in SQLite / JSONB in Supabase
+  OC  = OpenClaw prefix
 ```
 
 ---
@@ -193,7 +335,7 @@ Represents a user of the GangNiaga AI OS platform. Currently supports a single r
 **Relations:**
 - `organization` → `Organization` (many-to-one, optional)
 
-**Usage Context:** User authentication, profile management, and organization membership. Currently minimal — will be expanded with NextAuth.js integration in v0.3.0.
+**Usage Context:** User authentication, profile management, and organization membership. Currently minimal — will be expanded with NextAuth.js integration.
 
 ---
 
@@ -212,7 +354,7 @@ The central multi-tenancy entity. All business data is scoped to an organization
 | `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
 | `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
 
-**Relations (13 has-many):**
+**Relations (24 has-many):**
 
 | Relation | Target Model | Description |
 |----------|-------------|-------------|
@@ -230,6 +372,17 @@ The central multi-tenancy entity. All business data is scoped to an organization
 | `pitchDecks` | `PitchDeck[]` | Pitch decks |
 | `citations` | `Citation[]` | Research citations |
 | `integrations` | `Integration[]` | Third-party integrations |
+| `openclawChannels` | `OpenClawChannel[]` | OpenClaw messaging channels |
+| `openclawGateways` | `OpenClawGateway[]` | OpenClaw gateway instances |
+| `openclawPlugins` | `OpenClawPlugin[]` | OpenClaw plugins |
+| `openclawDelegates` | `OpenClawDelegate[]` | OpenClaw AI delegates |
+| `openclawWebhooks` | `OpenClawWebhook[]` | OpenClaw webhook registrations |
+| `openclawScheduledTasks` | `OpenClawScheduledTask[]` | OpenClaw scheduled tasks |
+| `openclawSoulConfigs` | `OpenClawSoulConfig[]` | OpenClaw SOUL personality configs |
+| `gatewayConversations` | `GatewayConversation[]` | Gateway messaging conversations |
+| `skills` | `Skill[]` | Skill registry |
+| `memoriesV2` | `AgentMemoryV2[]` | Enhanced agent memories |
+| `chatSessions` | `ChatSession[]` | Chat sessions |
 
 **Usage Context:** Multi-tenancy root. Every data query is scoped to an organization. Currently uses hardcoded `organizationId: "default"` — proper tenancy enforcement planned for v0.6.0.
 
@@ -385,7 +538,7 @@ Persistent memory store for AI agents. Enables agents to maintain context across
 **Relations:**
 - `organization` → `Organization` (many-to-one, required)
 
-**Design Note:** The `embedding` field is currently unused (SQLite does not support vector operations). It is reserved for the PostgreSQL + pgvector migration planned in v0.4.0, which will enable semantic search over agent memories.
+**Design Note:** The `embedding` field is currently unused (SQLite does not support vector operations). It is reserved for the PostgreSQL + pgvector migration, which will enable semantic search over agent memories.
 
 **Usage Context:** The Memory module displays and manages agent memory entries. The AI Copilot can reference memory entries for context. Currently, memory is primarily seeded from Zustand store defaults.
 
@@ -474,7 +627,7 @@ Stores generated business reports with their content and format metadata.
 **Relations:**
 - `organization` → `Organization` (many-to-one, required)
 
-**Usage Context:** Created via the Reports module and `POST /api/reports`. The `format` field is currently metadata only — actual format conversion is planned for v0.3.0.
+**Usage Context:** Created via the Reports module and `POST /api/reports`. The `format` field is currently metadata only — actual format conversion is planned for a future release.
 
 ---
 
@@ -741,32 +894,503 @@ type IntegrationConfig = {
 
 ---
 
+### 17. OpenClawChannel
+
+Multi-channel messaging configuration for the OpenClaw integration layer. Tracks individual channel connections across platforms like WhatsApp, Telegram, Discord, Slack, and more.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `type` | `String` | Required | Channel type: `whatsapp`, `telegram`, `discord`, `slack`, `webchat`, `signal` |
+| `name` | `String` | Required | Display name for the channel |
+| `status` | `String` | `@default("disconnected")` | Status: `connected`, `disconnected`, `connecting`, `error`, `pending_approval` |
+| `lastMessage` | `String?` | Optional | Preview of last received/sent message |
+| `lastMessageAt` | `DateTime?` | Optional | Timestamp of last message activity |
+| `messageCount` | `Int` | `@default(0)` | Total message count for this channel |
+| `config` | `String?` | Optional | JSON object of channel-specific configuration |
+| `pairedAt` | `DateTime?` | Optional | When the channel was successfully paired |
+| `avatarUrl` | `String?` | Optional | Channel avatar or bot profile image URL |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Config Format:**
+
+```typescript
+type OpenClawChannelConfig = {
+  apiKey?: string;
+  webhookUrl?: string;
+  botToken?: string;
+  phoneNumber?: string;
+  chatId?: string;
+  autoReply?: boolean;
+  [key: string]: unknown;
+};
+```
+
+**Usage Context:** Managed via the OpenClaw module and `/api/openclaw/channels`. Each channel represents a distinct messaging platform connection. Channel status reflects real-time connectivity.
+
+---
+
+### 18. OpenClawGateway
+
+Gateway instance configuration for the OpenClaw multi-channel messaging server. Tracks the gateway process status, network configuration, and health metrics.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `status` | `String` | `@default("unconfigured")` | Status: `running`, `stopped`, `starting`, `error`, `unconfigured` |
+| `bindHost` | `String` | `@default("127.0.0.1")` | Gateway bind address |
+| `bindPort` | `Int` | `@default(18789)` | Gateway bind port |
+| `uptime` | `Int` | `@default(0)` | Uptime in seconds |
+| `connectedClients` | `Int` | `@default(0)` | Number of connected channel clients |
+| `activeChannels` | `Int` | `@default(0)` | Number of active messaging channels |
+| `totalMessages` | `Int` | `@default(0)` | Total messages processed |
+| `lastHealthCheck` | `DateTime?` | Optional | Timestamp of last health check |
+| `version` | `String?` | Optional | Gateway software version |
+| `config` | `String?` | Optional | JSON object with authMode, logLevel, etc. |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Config Format:**
+
+```typescript
+type OpenClawGatewayConfig = {
+  authMode?: string;          // e.g., "token", "oauth"
+  logLevel?: string;          // e.g., "info", "debug"
+  maxConnections?: number;
+  heartbeatInterval?: number; // seconds
+  channels?: string[];        // enabled channel types
+  plugins?: string[];         // enabled plugin IDs
+  [key: string]: unknown;
+};
+```
+
+**Usage Context:** Managed via the OpenClaw module and `/api/openclaw/gateway`. Typically one gateway instance per organization. Health checks update `lastHealthCheck`, `uptime`, and `connectedClients`.
+
+---
+
+### 19. OpenClawPlugin
+
+Plugin registry for the OpenClaw messaging system. Tracks installed, available, and custom plugins that extend gateway functionality.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `name` | `String` | Required | Plugin display name |
+| `version` | `String` | `@default("1.0.0")` | Semantic version |
+| `description` | `String?` | Optional | Plugin description |
+| `author` | `String?` | Optional | Plugin author |
+| `capabilities` | `String?` | Optional | JSON array of capability strings |
+| `status` | `String` | `@default("available")` | Status: `installed`, `enabled`, `disabled`, `error`, `available` |
+| `source` | `String` | `@default("clawhub")` | Source: `bundled`, `clawhub`, `local` |
+| `installedAt` | `DateTime?` | Optional | When the plugin was installed |
+| `lastUpdated` | `DateTime?` | Optional | When the plugin was last updated |
+| `config` | `String?` | Optional | JSON object of plugin-specific configuration |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Capabilities Format:**
+
+```typescript
+type PluginCapabilities = string[];
+// e.g., ["message_filter", "auto_reply", "sentiment_analysis", "translation"]
+```
+
+**Usage Context:** Managed via the OpenClaw module and `/api/openclaw/plugins`. Plugins can be installed from ClawdHub, bundled with the system, or created locally. The `source` field tracks where the plugin originated.
+
+---
+
+### 20. OpenClawDelegate
+
+AI delegate/agent configuration for the OpenClaw system. Defines AI-powered delegates that can read, respond, or proactively act on behalf of users across messaging channels.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `name` | `String` | Required | Delegate display name |
+| `email` | `String` | Required | Delegate email address |
+| `displayName` | `String` | Required | Human-friendly display name |
+| `tier` | `String` | `@default("tier1_readonly")` | Permission tier: `tier1_readonly`, `tier2_send_behalf`, `tier3_proactive` |
+| `status` | `String` | `@default("setup")` | Status: `active`, `inactive`, `suspended`, `setup` |
+| `channels` | `String?` | Optional | JSON array of channel types this delegate operates on |
+| `principalName` | `String?` | Optional | Name of the human this delegate acts for |
+| `principalEmail` | `String?` | Optional | Email of the human this delegate acts for |
+| `standingOrders` | `String?` | Optional | JSON array of standing order rules |
+| `tasksCompleted` | `Int` | `@default(0)` | Number of tasks completed by this delegate |
+| `lastActivity` | `DateTime?` | Optional | Timestamp of last delegate activity |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Channels Format:**
+
+```typescript
+type DelegateChannels = string[];
+// e.g., ["whatsapp", "telegram", "email"]
+```
+
+**JSON Standing Orders Format:**
+
+```typescript
+type StandingOrders = Array<{
+  id: string;
+  condition: string;      // e.g., "new_message_received"
+  action: string;         // e.g., "auto_reply_with_template"
+  template?: string;
+  enabled: boolean;
+}>;
+```
+
+**Design Note:** The three-tier permission model (`tier1_readonly`, `tier2_send_behalf`, `tier3_proactive`) controls how autonomously a delegate can act. Tier 1 delegates can only read messages, Tier 2 can send on behalf of the principal, and Tier 3 can proactively initiate conversations.
+
+**Usage Context:** Managed via the OpenClaw module and `/api/openclaw/delegates`. Delegates are the AI agents that handle messaging interactions across channels.
+
+---
+
+### 21. OpenClawWebhook
+
+Webhook registrations for the OpenClaw system. Defines HTTP endpoints that receive event notifications when messaging events occur.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `name` | `String` | Required | Webhook display name |
+| `url` | `String` | Required | Target URL for webhook delivery |
+| `method` | `String` | `@default("POST")` | HTTP method: `POST`, `PUT`, `PATCH` |
+| `events` | `String?` | Optional | JSON array of event types to subscribe to |
+| `status` | `String` | `@default("active")` | Status: `active`, `inactive`, `error` |
+| `lastTriggered` | `DateTime?` | Optional | When the webhook was last fired |
+| `triggerCount` | `Int` | `@default(0)` | Total number of times triggered |
+| `secret` | `String?` | Optional | HMAC secret for payload verification |
+| `headers` | `String?` | Optional | JSON object of custom HTTP headers |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Events Format:**
+
+```typescript
+type WebhookEvents = string[];
+// e.g., ["message.received", "message.sent", "channel.connected", "delegate.action"]
+```
+
+**JSON Headers Format:**
+
+```typescript
+type WebhookHeaders = Record<string, string>;
+// e.g., { "Authorization": "Bearer token123", "X-Custom-Header": "value" }
+```
+
+**Usage Context:** Managed via the OpenClaw module and `/api/openclaw/webhooks`. The `secret` field is used for HMAC-SHA256 signature verification of webhook payloads.
+
+---
+
+### 22. OpenClawScheduledTask
+
+Scheduled automation tasks for the OpenClaw system. Supports cron-based scheduling of AI agent actions and messaging automations.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `name` | `String` | Required | Task display name |
+| `cronExpression` | `String` | Required | Cron schedule expression (e.g., "0 9 * * 1-5") |
+| `status` | `String` | `@default("active")` | Status: `active`, `paused`, `error`, `completed` |
+| `agentId` | `String?` | Optional | Associated agent/delegate ID |
+| `prompt` | `String?` | Optional | AI prompt to execute when triggered |
+| `channel` | `String?` | Optional | Target channel type for the task |
+| `lastRun` | `DateTime?` | Optional | When the task was last executed |
+| `nextRun` | `DateTime?` | Optional | When the task will next execute |
+| `runCount` | `Int` | `@default(0)` | Total number of executions |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**Design Note:** The `agentId` field is a soft reference (not a Prisma FK), allowing tasks to reference delegates or agent sessions that may not yet be persisted.
+
+**Usage Context:** Managed via the OpenClaw module and `/api/openclaw/automation`. Tasks can be paused/resumed and track execution history via `lastRun`, `nextRun`, and `runCount`.
+
+---
+
+### 23. OpenClawSoulConfig
+
+SOUL.md personality configuration for the OpenClaw AI system. Defines the personality, tone, language, and behavioral rules that shape how the AI assistant communicates.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `personality` | `String` | `@default("Professional, knowledgeable, and supportive ASEAN SME business assistant")` | Core personality description |
+| `tone` | `String` | `@default("Professional yet approachable; uses Malaysian business English")` | Communication tone |
+| `language` | `String` | `@default("English (with Bahasa Melayu and Mandarin loan words where appropriate)")` | Language and dialect preferences |
+| `specialty` | `String` | `@default("ASEAN SME business planning, financial modeling, and market analysis")` | Domain specialty |
+| `greeting` | `String` | `@default("Hello! I'm your AI business assistant for GangNiaga. How can I help you grow your business today?")` | Default greeting message |
+| `rules` | `String` | `@default("[]")` | JSON array of behavioral rule strings |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Rules Format:**
+
+```typescript
+type SoulRules = string[];
+// e.g., [
+//   "Always confirm before making financial commitments",
+//   "Never share sensitive data outside the organization",
+//   "Use formal language for board-level communications"
+// ]
+```
+
+**Usage Context:** Managed via the OpenClaw module and `/api/openclaw/soul`. The SOUL config is frozen into `ChatSession.soulSnapshot` at the start of each chat session, ensuring consistent personality throughout the conversation even if the config is changed mid-session.
+
+---
+
+### 24. GatewayConversation
+
+Conversation persistence for messaging platforms. Stores individual messages from external channels (Telegram, WhatsApp, Discord, etc.) with platform-specific metadata.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `platform` | `String` | Required | Platform: `telegram`, `whatsapp`, `discord`, `slack`, etc. |
+| `platformUserId` | `String` | Required | Unique user ID on the platform (e.g., Telegram chat ID, WhatsApp phone number) |
+| `userName` | `String?` | Optional | Display name from the platform |
+| `direction` | `String` | Required | Message direction: `inbound`, `outbound` |
+| `messageType` | `String` | `@default("text")` | Type: `text`, `voice`, `image`, `system` |
+| `content` | `String` | Required | Message content |
+| `metadata` | `String?` | Optional | JSON: platform-specific data (message_id, raw payload, etc.) |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Metadata Format:**
+
+```typescript
+type GatewayMetadata = {
+  messageId?: string;          // Platform-specific message ID
+  replyToId?: string;         // ID of message being replied to
+  rawPayload?: unknown;       // Original platform payload
+  attachments?: Array<{       // File attachments
+    type: string;
+    url: string;
+    name?: string;
+  }>;
+  [key: string]: unknown;
+};
+```
+
+**Design Note:** This model stores individual messages rather than full conversations. The `platformUserId` + `platform` combination serves as a logical conversation thread identifier. Unlike `ChatSession`, which stores the full message array as JSON, this model uses one row per message for easier querying and pagination.
+
+**Usage Context:** Used by the OpenClaw Gateway module and `/api/gateway/status`. Messages are persisted as they flow through the gateway, enabling conversation history retrieval and audit trails.
+
+---
+
+### 25. Skill
+
+Hermes-inspired skill registry and configuration. Skills are reusable AI capabilities (instructions/knowledge) that can be triggered by slash commands or automatically activated during conversations.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `name` | `String` | `@unique` | Skill name (unique across organization) |
+| `slug` | `String` | `@unique` | URL-safe slug (unique across organization) |
+| `description` | `String` | Required | Skill description |
+| `version` | `String` | `@default("1.0.0")` | Semantic version |
+| `category` | `String` | `@default("general")` | Category: `general`, `business`, `financial`, `marketing`, `research`, `automation` |
+| `content` | `String` | Required | Skill instructions/knowledge (Markdown) |
+| `triggerPhrase` | `String?` | Optional | Slash command trigger (e.g., "/market-analysis") |
+| `tags` | `String?` | Optional | JSON array of tag strings |
+| `usageCount` | `Int` | `@default(0)` | Number of times this skill has been used |
+| `lastUsedAt` | `DateTime?` | Optional | When this skill was last used |
+| `source` | `String` | `@default("user_created")` | Source: `user_created`, `ai_generated`, `bundled`, `hub` |
+| `status` | `String` | `@default("active")` | Status: `active`, `deprecated`, `draft` |
+| `autoLearn` | `Boolean` | `@default(false)` | Whether this skill can auto-improve from conversations |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**Unique Constraints:**
+- `name` — Ensures skill names are unique per organization
+- `slug` — Ensures URL-safe identifiers are unique per organization
+
+**JSON Tags Format:**
+
+```typescript
+type SkillTags = string[];
+// e.g., ["financial", "forecast", "ai-powered", "banking"]
+```
+
+**Usage Context:** Managed via the Skills module and `/api/skills`. Skills can be executed via `/api/skills/execute`, and the `autoLearn` feature enables skills to improve based on conversation feedback via `/api/skills/auto-learn`. Usage metrics are tracked via `usageCount` and `lastUsedAt`.
+
+---
+
+### 26. AgentMemoryV2
+
+Hermes-inspired enhanced memory with importance scoring and character limits. Provides a more structured memory system than the original `AgentMemory` model, supporting prioritized recall and memory management.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `type` | `String` | `@default("memory")` | Type: `memory`, `user_profile` |
+| `key` | `String` | Required | Short label for this memory entry (e.g., "Company Name", "Revenue Target") |
+| `content` | `String` | Required | The actual memory content |
+| `importance` | `Int` | `@default(5)` | Importance score (1-10, higher = more important) |
+| `charLimit` | `Int` | `@default(500)` | Maximum characters for this entry |
+| `sessionId` | `String?` | Optional | Which session created this memory |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**Design Note:** The `importance` field (1-10) allows the AI to prioritize which memories to include in context windows. The `charLimit` field enforces memory brevity, preventing individual memories from consuming too much of the context window. The `key` field provides a human-readable label for memory entries, making them easier to browse and manage.
+
+**Usage Context:** Managed via the Memory module and `/api/memory`. The V2 memory system is used by the Chat module to build context for conversations. Memories with higher `importance` scores are prioritized when constructing prompts.
+
+---
+
+### 27. ChatSession
+
+Persistent chat sessions with memory and SOUL snapshots. Stores complete conversation history with frozen snapshots of memory and personality configuration at session start.
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `String` | `@id @default(cuid())` | Unique identifier |
+| `title` | `String?` | Optional | Chat session title |
+| `platform` | `String` | `@default("web")` | Platform: `web`, `telegram`, `whatsapp`, `discord`, `slack` |
+| `platformSessionId` | `String?` | Optional | External platform session ID |
+| `messages` | `String` | `@default("[]")` | JSON array of chat messages |
+| `memorySnapshot` | `String?` | Optional | Frozen memory at session start (JSON) |
+| `soulSnapshot` | `String?` | Optional | Frozen SOUL.md at session start (JSON) |
+| `skillsUsed` | `String?` | Optional | JSON array of skill IDs used in this session |
+| `status` | `String` | `@default("active")` | Status: `active`, `ended`, `archived` |
+| `organizationId` | `String` | Required FK | Links to Organization |
+| `organization` | `Organization` | Relation | Belongs to Organization |
+| `createdAt` | `DateTime` | `@default(now())` | Creation timestamp |
+| `updatedAt` | `DateTime` | `@updatedAt` | Last update timestamp |
+
+**Relations:**
+- `organization` → `Organization` (many-to-one, required)
+
+**JSON Messages Format:**
+
+```typescript
+type ChatMessages = Array<{
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;           // ISO 8601
+  skillUsed?: string;          // Skill ID if a skill was triggered
+  metadata?: Record<string, unknown>;
+}>;
+```
+
+**JSON Memory Snapshot Format:**
+
+```typescript
+type MemorySnapshot = Array<{
+  key: string;
+  content: string;
+  importance: number;
+}>;
+```
+
+**JSON Soul Snapshot Format:**
+
+```typescript
+type SoulSnapshot = {
+  personality: string;
+  tone: string;
+  language: string;
+  specialty: string;
+  greeting: string;
+  rules: string[];
+};
+```
+
+**Design Note:** The snapshot pattern (`memorySnapshot`, `soulSnapshot`) ensures conversation consistency. Even if the organization's memory or SOUL config changes during a session, the conversation continues with the original context. This is critical for audit trails and reproducible AI behavior.
+
+**Usage Context:** Managed via the Chat module and `/api/chat` and `/api/sessions`. Chat sessions are created when a user starts a conversation on any platform. The `platformSessionId` links web chats to their external messaging platform equivalents.
+
+---
+
 ## Schema Design Decisions
 
-### 1. SQLite for Development, PostgreSQL for Production
+### 1. Dual-Database Architecture (Supabase + Prisma/SQLite)
 
-**Decision:** Use SQLite during development for zero-config setup, with a planned migration to PostgreSQL for production.
+**Decision:** Use Supabase PostgreSQL as the primary database in production, with Prisma/SQLite as a local development fallback.
+
+**Rationale:**
+- Supabase provides managed PostgreSQL with REST API access (no direct connection needed)
+- REST API access works in serverless environments (Vercel) where TCP connections are limited
+- SQLite provides zero-config local development without external service dependencies
+- Prisma ORM serves as the universal schema definition, ensuring both databases have identical structure
+- Row Level Security (RLS) in Supabase enables fine-grained access control in production
+
+**Trade-off:** API routes must implement the try-Supabase-first fallback pattern, adding complexity. Data consistency between the two databases is not automatic — schema changes must be applied to both.
+
+### 2. SQLite for Local Development, Supabase for Production
+
+**Decision:** Use SQLite during development for zero-config setup, with Supabase PostgreSQL for production.
 
 **Rationale:**
 - SQLite eliminates the need for a running database server in development
-- Prisma's abstraction layer makes the migration mostly transparent
-- PostgreSQL is needed for: vector search (pgvector), concurrent writes, JSONB indexing, and full-text search
+- Prisma's abstraction layer makes the fallback mostly transparent
+- Supabase provides: vector search (pgvector), concurrent writes, JSONB indexing, RLS, and real-time subscriptions
 
-**Trade-off:** SQLite lacks native JSON query support, so JSON fields are stored as plain strings and must be parsed in application code.
+**Trade-off:** SQLite lacks native JSON query support, so JSON fields are stored as plain strings and must be parsed in application code. Some Supabase features (RLS, real-time) are not available locally.
 
-### 2. JSON String Fields Instead of Separate Tables
+### 3. JSON String Fields Instead of Separate Tables
 
-**Decision:** Complex nested data (forecast points, workflow steps, review discrepancies, etc.) is stored as JSON strings rather than normalized into separate tables.
+**Decision:** Complex nested data (forecast points, workflow steps, review discrepancies, chat messages, etc.) is stored as JSON strings rather than normalized into separate tables.
 
 **Rationale:**
 - Reduces schema complexity and join overhead
 - The data is always read/written as a complete unit (no partial updates)
 - SQLite lacks JSONB support, so the performance difference is negligible
-- PostgreSQL migration will enable JSONB with indexing
+- Supabase PostgreSQL uses JSONB with indexing for the same fields
 
-**Trade-off:** Cannot query into JSON fields with Prisma. If you need to query by a nested field, you must fetch all records and filter in application code.
+**Trade-off:** Cannot query into JSON fields with Prisma. If you need to query by a nested field, you must fetch all records and filter in application code. In Supabase, PostgREST supports JSON column filtering.
 
-### 3. Organization-Centric Multi-Tenancy
+### 4. Organization-Centric Multi-Tenancy
 
 **Decision:** All business models have a required `organizationId` foreign key pointing to `Organization`.
 
@@ -774,23 +1398,24 @@ type IntegrationConfig = {
 - Clean tenant isolation at the data layer
 - Simple query patterns: always include `where: { organizationId }` 
 - Supports future multi-tenancy enforcement at the middleware level
+- Supabase RLS policies can enforce organization scoping at the database level
 
 **Trade-off:** Currently using hardcoded `organizationId: "default"` — no actual tenant isolation yet.
 
-### 4. Soft Foreign Keys for Plan References
+### 5. Soft Foreign Keys for Cross-Model References
 
-**Decision:** `PlanReview.planId` and `PitchDeck.planId` are plain strings, not Prisma foreign keys.
+**Decision:** `PlanReview.planId`, `PitchDeck.planId`, `OpenClawScheduledTask.agentId` are plain strings, not Prisma foreign keys.
 
 **Rationale:**
-- Plans may exist only in client-side state (Zustand store) during early development
-- Avoids cascade delete issues when plans are deleted
+- Referenced entities may exist only in client-side state during early development
+- Avoids cascade delete issues when parent records are deleted
 - Provides flexibility for cross-system references
 
-**Trade-off:** No referential integrity at the database level. Orphaned reviews/decks are possible if a plan is deleted.
+**Trade-off:** No referential integrity at the database level. Orphaned records are possible if a referenced entity is deleted.
 
-### 5. String-Based Enums
+### 6. String-Based Enums
 
-**Decision:** All enum-like fields (status, type, persona, etc.) use `String` instead of Prisma enums.
+**Decision:** All enum-like fields (status, type, persona, tier, etc.) use `String` instead of Prisma enums.
 
 **Rationale:**
 - SQLite doesn't support native enum types
@@ -799,7 +1424,7 @@ type IntegrationConfig = {
 
 **Trade-off:** No database-level constraint on valid values. Invalid strings can be inserted if application validation fails.
 
-### 6. No Cascade Deletes
+### 7. No Cascade Deletes
 
 **Decision:** No `onDelete: Cascade` on any relation.
 
@@ -808,13 +1433,26 @@ type IntegrationConfig = {
 - Explicit deletion is safer for business-critical data
 - Organization deletion should require explicit cleanup of all related data
 
-**Trade-off:** Deleting an organization leaves orphaned records. This will be addressed with a cleanup service in v0.3.0.
+**Trade-off:** Deleting an organization leaves orphaned records. This will be addressed with a cleanup service in a future release.
+
+### 8. Snapshot Pattern for Chat Sessions
+
+**Decision:** `ChatSession` stores frozen copies of memory (`memorySnapshot`) and personality (`soulSnapshot`) at session start.
+
+**Rationale:**
+- Ensures conversation consistency even if organization config changes mid-session
+- Critical for audit trails — you can see exactly what context the AI had when it generated a response
+- Enables reproducible AI behavior for debugging and compliance
+
+**Trade-off:** Increases storage usage as snapshots are duplicated per session. Memory snapshots can become stale if the organization's memory is significantly updated.
 
 ---
 
 ## JSON Field Patterns
 
 The following table summarizes all JSON string fields in the schema:
+
+### Core Models (Original 16)
 
 | Model | Field | TypeScript Type | Purpose |
 |-------|-------|----------------|---------|
@@ -831,6 +1469,33 @@ The following table summarizes all JSON string fields in the schema:
 | `PitchDeck` | `anticipatedQuestions` | `AnticipatedQuestion[]` | Predicted Q&A |
 | `Integration` | `config` | `IntegrationConfig` | OAuth & settings |
 
+### OpenClaw Models (7)
+
+| Model | Field | TypeScript Type | Purpose |
+|-------|-------|----------------|---------|
+| `OpenClawChannel` | `config` | `OpenClawChannelConfig` | Channel-specific settings (API keys, tokens) |
+| `OpenClawGateway` | `config` | `OpenClawGatewayConfig` | Gateway settings (auth, channels, plugins) |
+| `OpenClawPlugin` | `capabilities` | `string[]` | Plugin capability descriptors |
+| `OpenClawPlugin` | `config` | `Record<string, unknown>` | Plugin configuration |
+| `OpenClawDelegate` | `channels` | `string[]` | Channel types this delegate operates on |
+| `OpenClawDelegate` | `standingOrders` | `StandingOrder[]` | Automated action rules |
+| `OpenClawWebhook` | `events` | `string[]` | Subscribed event types |
+| `OpenClawWebhook` | `headers` | `Record<string, string>` | Custom HTTP headers |
+| `OpenClawSoulConfig` | `rules` | `string[]` | Behavioral rules for AI personality |
+
+### Gateway, Skills & Chat Models (3)
+
+| Model | Field | TypeScript Type | Purpose |
+|-------|-------|----------------|---------|
+| `GatewayConversation` | `metadata` | `GatewayMetadata` | Platform-specific message data |
+| `Skill` | `tags` | `string[]` | Skill categorization tags |
+| `ChatSession` | `messages` | `ChatMessage[]` | Full conversation history |
+| `ChatSession` | `memorySnapshot` | `MemorySnapshot[]` | Frozen memory at session start |
+| `ChatSession` | `soulSnapshot` | `SoulSnapshot` | Frozen SOUL.md at session start |
+| `ChatSession` | `skillsUsed` | `string[]` | Skill IDs used in session |
+
+**Total: 27 JSON string fields** (up from 12 in v0.2.0)
+
 **Parsing Pattern:**
 
 ```typescript
@@ -846,16 +1511,109 @@ const parsed = (() => {
 
 ---
 
+## Supabase Integration
+
+### Client Setup
+
+The Supabase client is configured in `src/lib/supabase.ts`:
+
+```typescript
+import { getSupabaseServer, getSupabaseClient, isSupabaseAvailable } from '@/lib/supabase';
+
+// Server-side (bypasses RLS) — use in API routes
+const supabase = getSupabaseServer();
+
+// Client-side (respects RLS) — use in browser
+const supabase = getSupabaseClient();
+
+// Check availability
+if (isSupabaseAvailable()) { /* use Supabase */ }
+```
+
+### Environment Variables
+
+| Variable | Scope | Purpose |
+|----------|-------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Server + Client | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Full access, bypasses RLS |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Server + Client | Limited access, respects RLS |
+
+### REST API Patterns (Supabase)
+
+Supabase uses the PostgREST API under the hood. Key patterns used in the codebase:
+
+```typescript
+// SELECT with filter
+const { data, error } = await supabase
+  .from('table_name')
+  .select('*')
+  .eq('organizationId', orgId);
+
+// INSERT
+const { data, error } = await supabase
+  .from('table_name')
+  .insert({ field: 'value' })
+  .select()
+  .single();
+
+// UPDATE
+const { data, error } = await supabase
+  .from('table_name')
+  .update({ field: 'new_value' })
+  .eq('id', recordId)
+  .select()
+  .single();
+
+// DELETE
+const { error } = await supabase
+  .from('table_name')
+  .delete()
+  .eq('id', recordId);
+```
+
+### Table Naming Convention
+
+Supabase tables use **snake_case** names that map to **PascalCase** Prisma models:
+
+| Prisma Model | Supabase Table |
+|-------------|---------------|
+| `User` | `users` |
+| `Organization` | `organizations` |
+| `BusinessPlan` | `business_plans` |
+| `AgentSession` | `agent_sessions` |
+| `OpenClawChannel` | `openclaw_channels` |
+| `OpenClawGateway` | `openclaw_gateways` |
+| `GatewayConversation` | `gateway_conversations` |
+| `ChatSession` | `chat_sessions` |
+| `AgentMemoryV2` | `agent_memory_v2` |
+
+### Row Level Security (RLS)
+
+Supabase RLS policies enforce organization-scoped access:
+
+```sql
+-- Example RLS policy (applied to each table)
+CREATE POLICY "Users can only see their organization's data"
+  ON table_name FOR ALL
+  USING (organizationId = auth.jwt()->>'organizationId');
+```
+
+**Important:** The server-side client (`getSupabaseServer()`) uses the service role key which **bypasses RLS**. This is intentional for API routes that need cross-organization access (e.g., admin operations). The client-side client (`getSupabaseClient()`) uses the anon key and **respects RLS**.
+
+---
+
 ## Migration Notes
 
-### Current State (v0.2.0)
+### Current State (v0.3.0)
 
 - Using `prisma db push` for schema synchronization (no migration files)
-- SQLite database at `db/custom.db`
-- No seed scripts — data is populated from Zustand store defaults
-- No migration history or versioning
+- SQLite database at `db/custom.db` for local development
+- Supabase PostgreSQL configured as primary production database
+- Dual-database pattern: try Supabase first → fallback to Prisma if unavailable
+- All 27 models synchronized across both databases
+- No migration history or versioning (Prisma)
 
-### Planned: SQLite → PostgreSQL Migration (v0.3.0)
+### Planned: Full PostgreSQL Migration (Future)
 
 ```bash
 # 1. Update schema.prisma datasource
@@ -886,6 +1644,14 @@ bun run db:migrate -- --name init_postgres
 | Add `@default(autoincrement())` options | CUID remains default, but autoincrement available | No change needed |
 | pgvector for `AgentMemory.embedding` | Enables semantic search | New query patterns needed |
 
+### Supabase-Specific Migration Notes
+
+- Supabase tables are managed via the Supabase dashboard or SQL migrations
+- The Prisma schema is the source of truth — Supabase tables must match
+- RLS policies must be created for each new table
+- Seed data is applied via Supabase dashboard or custom seed scripts
+- JSON fields in Supabase use native JSONB (not JSON strings)
+
 ---
 
 ## Index Strategy
@@ -898,9 +1664,12 @@ bun run db:migrate -- --name init_postgres
 | `User` | `email` | Unique | Yes |
 | `Organization` | `id` | Primary | Yes |
 | `Organization` | `slug` | Unique | Yes |
+| `Skill` | `id` | Primary | Yes |
+| `Skill` | `name` | Unique | Yes |
+| `Skill` | `slug` | Unique | Yes |
 | All others | `id` | Primary | Yes |
 
-### Planned Indexes (v0.3.0 — PostgreSQL)
+### Planned Indexes (PostgreSQL)
 
 ```prisma
 model AgentSession {
@@ -937,6 +1706,31 @@ model Citation {
   @@index([organizationId, type])
   @@index([organizationId, verified])
 }
+
+model GatewayConversation {
+  @@index([organizationId, platform])
+  @@index([organizationId, platformUserId])
+}
+
+model ChatSession {
+  @@index([organizationId, platform])
+  @@index([organizationId, status])
+}
+
+model OpenClawChannel {
+  @@index([organizationId, type])
+  @@index([organizationId, status])
+}
+
+model Skill {
+  @@index([organizationId, category])
+  @@index([organizationId, status])
+}
+
+model AgentMemoryV2 {
+  @@index([organizationId, type])
+  @@index([organizationId, importance])
+}
 ```
 
 **Rationale:** Composite indexes on `(organizationId, ...)` support the multi-tenant query pattern where all queries are scoped to an organization first. Single-column indexes on frequently filtered fields (status, type, period) improve dashboard and list queries.
@@ -945,7 +1739,7 @@ model Citation {
 
 ## Future Schema Changes
 
-### v0.3.0 — Production Readiness
+### v0.3.x — Production Hardening
 
 | Change | Description |
 |--------|-------------|
@@ -956,6 +1750,7 @@ model Citation {
 | Convert JSON `String` → `Json` | Native PostgreSQL JSONB support |
 | Convert `Float` → `Decimal` | Accurate monetary calculations |
 | Add composite indexes | Multi-tenant query optimization |
+| Add RLS policies | Supabase Row Level Security for all tables |
 
 ### v0.4.0 — Intelligence
 
@@ -965,6 +1760,7 @@ model Citation {
 | Add `AgentConversation` model | Multi-turn agent conversation history |
 | Add `ModelConfig` model | LLM model configuration per organization |
 | Add `PromptTemplate` model | Customizable prompt templates |
+| Consolidate `AgentMemory` + `AgentMemoryV2` | Unify memory system |
 
 ### v0.5.0 — Integration
 
@@ -988,4 +1784,4 @@ model Citation {
 
 ---
 
-*Last updated: 2025-01-15 | GangNiaga AI OS v0.2.0*
+*Last updated: 2025-03-05 | GangNiaga AI OS v0.3.0 | 27 Models*

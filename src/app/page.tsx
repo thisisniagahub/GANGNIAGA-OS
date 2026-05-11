@@ -20,6 +20,7 @@ import ResearchModule from '@/components/modules/research';
 import OpenClawModule from '@/components/modules/openclaw';
 import CommandPalette from '@/components/layout/command-palette';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 
 const moduleComponents: Record<string, React.ComponentType> = {
   dashboard: DashboardModule,
@@ -39,13 +40,26 @@ const moduleComponents: Record<string, React.ComponentType> = {
 };
 
 export default function GangNiagaAIOS() {
-  const { activeModule, copilotOpen } = useAppStore();
+  const { activeModule, copilotOpen, mobileMenuOpen, setMobileMenuOpen } = useAppStore();
   const ActiveModule = moduleComponents[activeModule] || DashboardModule;
 
   return (
-    <div className="h-screen flex overflow-hidden bg-background">
-      {/* Sidebar */}
-      <Sidebar />
+    <div className="h-dvh flex overflow-hidden bg-background">
+      {/* Desktop Sidebar — visible on md and above */}
+      <div className="hidden md:flex">
+        <Sidebar />
+      </div>
+
+      {/* Mobile Sidebar Drawer — visible below md */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="p-0 w-[280px] sm:max-w-[280px]">
+          <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+          <Sidebar
+            isMobile
+            onCloseMobile={() => setMobileMenuOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

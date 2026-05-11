@@ -1,7 +1,7 @@
 # GangNiaga AI OS — Design System & UI/UX Document
 
-> **Version:** 1.0  
-> **Last Updated:** 2025-03-05  
+> **Version:** v0.3.0  
+> **Last Updated:** March 2025  
 > **Status:** Source of Truth  
 
 ---
@@ -95,6 +95,7 @@ Each module has a designated accent color used consistently for icons, borders, 
 | Pitch Deck | Teal | `text-teal-500` |
 | Reports | Emerald | `text-emerald-500` |
 | Plan vs Actuals | Cyan | `text-cyan-500` |
+| OpenClaw | Cyan | `text-cyan-500` |
 | Settings | Muted | `text-muted-foreground` |
 
 ### 2.4 Proposal Type Color Coding
@@ -343,6 +344,7 @@ Built on **shadcn/ui (New York style)** with **Lucide icons** and **class-varian
 | Intelligence | Idea Canvas, Plan Review, Research Agent |
 | Automation | Agent Console, Workflows, Memory Engine |
 | Output | Pitch Deck, Reports, Plan vs Actuals |
+| Channels | OpenClaw |
 | System | Settings |
 
 **Active state:** `bg-emerald-500/8 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-l-[3px] border-l-emerald-500`
@@ -386,6 +388,7 @@ Height: `h-14` with `bg-card/60 backdrop-blur-sm`
 | **Split panel** | Business Plans, Idea Canvas, Pitch Deck | `lg:w-1/3` (list) + `flex-1` (detail) |
 | **Tab-based** | Financials | 6 tabs with sub-layouts |
 | **Console** | Agent Console, Workflows | Table/grid with status indicators |
+| **Split panel + channels** | OpenClaw | `lg:w-1/3` (channels/plugins) + `flex-1` (conversation/log) |
 
 ---
 
@@ -580,6 +583,7 @@ className="p-4 md:p-6"
 | Pitch Deck | `Presentation` | teal |
 | Reports | `BarChart3` | emerald |
 | Plan vs Actuals | `GitCompareArrows` | cyan |
+| OpenClaw | `Radio` | cyan |
 | Settings | `Settings` | muted |
 
 ### 8.4 Recurring Icon Patterns
@@ -889,6 +893,143 @@ Uses Tailwind's default 4px base unit:
 - Suggested prompts: Bordered buttons with emerald hover
 - Online indicator: `animate-pulse` on emerald dot
 - Send button: `bg-gradient-to-r from-emerald-500 to-teal-600`
+
+### 11.8 OpenClaw Multi-Channel Gateway
+
+**Layout:** Split panel (1/3 channels/plugins + 2/3 conversation/log)
+
+```
+┌────────────┬─────────────────────────────────────┐
+│ Left Panel │ Right Panel                          │
+│ (1/3)      │                                      │
+│            │ ┌─ Tab Bar ────────────────────────┐ │
+│ ┌────────┐ │ │ Messages │ Delegates │ Automation │ │
+│ │Channel │ │ ├──────────────────────────────────┤ │
+│ │Status  │ │ │                                  │ │
+│ │Cards   │ │ │  Message Log /                    │ │
+│ │(6x)    │ │ │  Conversation Viewer             │ │
+│ └────────┘ │ │  (channel-specific formatting)    │ │
+│ ┌────────┐ │ │                                  │ │
+│ │Plugin  │ │ │                                  │ │
+│ │Grid    │ │ │                                  │ │
+│ │(6x)    │ │ └──────────────────────────────────┘ │
+│ └────────┘ │                                      │
+│ ┌────────┐ │ ┌─ SOUL.md Editor ─────────────────┐ │
+│ │Delegate│ │ │  Code editor with syntax          │ │
+│ │List    │ │ │  highlighting (read/edit mode)    │ │
+│ │(7x)   │ │ └──────────────────────────────────┘ │
+│ └────────┘ │                                      │
+│ ┌────────┐ │ ┌─ Webhook Management ─────────────┐ │
+│ │Auto-   │ │ │  Event badges + test buttons      │ │
+│ │mation  │ │ └──────────────────────────────────┘ │
+│ │Scheduler│ │                                     │
+│ └────────┘ │                                      │
+└────────────┴─────────────────────────────────────┘
+```
+
+**Key patterns:**
+
+#### Channel Status Cards
+- 6 cards in a 2-col grid (`grid-cols-2`)
+- Each card shows: channel icon, name, status indicator, message count
+- Status indicators:
+  - **Active**: `bg-emerald-500/15 text-emerald-600 dark:text-emerald-400` + pulsing dot
+  - **Inactive**: `bg-amber-500/15 text-amber-600 dark:text-amber-400` + static dot
+  - **Error**: `bg-rose-500/15 text-rose-600 dark:text-rose-400` + warning icon
+  - **Beta**: `bg-cyan-500/15 text-cyan-600 dark:text-cyan-400` + beta badge
+
+```tsx
+// Channel status card pattern
+<Card className="border-border/40 bg-card/80">
+  <CardContent className="p-3 flex items-center gap-3">
+    <div className="h-9 w-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+      <Radio className="h-4 w-4 text-cyan-500" />
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-sm font-medium">WhatsApp</p>
+      <div className="flex items-center gap-1.5">
+        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-xs text-emerald-500">Active</span>
+      </div>
+    </div>
+    <Badge variant="outline" className="text-[10px]">142 msg</Badge>
+  </CardContent>
+</Card>
+```
+
+#### Plugin Cards with Capability Badges
+- 6 cards in a 2-col grid
+- Each card shows: plugin name, key, description, capability badges
+- Capability badges: `bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20`
+- "Execute" button: emerald accent with `Sparkles` icon
+
+```tsx
+<Badge className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20 text-[10px] px-1.5">
+  generate_business_plan
+</Badge>
+```
+
+#### Delegate Personality Cards
+- 7 delegate cards in a vertical list
+- Each card shows: delegate icon, name, type, channel affinity badges, status
+- Channel affinity badges: small colored pills per channel
+- Status: running (emerald pulse), idle (gray), active (emerald)
+
+#### SOUL.md Code Editor with Syntax Highlighting
+- Full-width code editor using `Textarea` with monospace font
+- Syntax highlighting via markdown-style formatting
+- Toggle between read mode (rendered) and edit mode (raw text)
+- "Save" button with emerald accent
+- Section headers in `text-cyan-500` for SOUL-specific keywords
+
+```tsx
+<Textarea
+  className="font-mono text-sm bg-card/60 border-border/40 min-h-[200px]"
+  value={soulContent}
+  onChange={(e) => setSoulContent(e.target.value)}
+/>
+```
+
+#### Automation Cron Display
+- 4 pre-configured tasks in a list
+- Each row: task name, cron schedule (human-readable), delegate badge, toggle switch
+- Cron schedule in `text-xs font-mono text-muted-foreground`
+- Active/inactive toggle using `Switch` component
+
+```tsx
+<div className="flex items-center justify-between p-3 rounded-lg border border-border/40">
+  <div>
+    <p className="text-sm font-medium">KPI Digest</p>
+    <p className="text-xs font-mono text-muted-foreground">0 8 * * *</p>
+  </div>
+  <Badge variant="outline" className="text-[10px]">Business Analyst</Badge>
+  <Switch checked={true} />
+</div>
+```
+
+#### Webhook Event Badges
+- Webhook URLs displayed with event type badges
+- HTTP method badges: `POST` in amber badge
+- Event type badges: `message` in cyan, `interaction` in emerald, `event` in teal
+- "Test" button per webhook with `RefreshCw` icon
+- "Copy URL" button with `Copy` icon
+
+```tsx
+<Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] px-1.5">
+  POST
+</Badge>
+<Badge className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] px-1.5">
+  message
+</Badge>
+```
+
+#### Message Log / Conversation Viewer
+- Filterable by channel (tabs or dropdown)
+- Message bubbles: User (left-aligned, muted bg), Assistant (right-aligned, card bg)
+- Channel icon indicator per message
+- Timestamp in `text-[10px] text-muted-foreground`
+- Delegate badge on assistant messages showing which delegate responded
+- Search bar with `Search` icon for message search
 
 ---
 
