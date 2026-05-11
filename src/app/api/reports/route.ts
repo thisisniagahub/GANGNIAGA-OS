@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { getZAI } from '@/lib/zai';
+
+const ORG_ID = 'org1';
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, type, format } = await request.json();
+    const { title, type, format, save } = await request.json();
 
     const zai = await getZAI();
 
@@ -42,6 +46,38 @@ Include key sections appropriate for this report type. Use professional formatti
 
     if (!content) {
       return NextResponse.json({ error: 'No report generated' }, { status: 500 });
+    }
+
+    // Optionally persist the report
+    if (save) {
+      try {
+        if (isSupabaseConfigured()) {
+          const supabase = getSupabaseServer();
+
+          await supabase.from('reports').insert({
+            title: title || 'Untitled Report',
+            type: type || 'investor',
+            status: 'generated',
+            content: content, // JSONB or text — store directly
+            format: format || 'pdf',
+            organization_id: ORG_ID,
+          });
+        } else if (db) {
+          await db.report.create({
+            data: {
+              title: title || 'Untitled Report',
+              type: type || 'investor',
+              status: 'generated',
+              content: JSON.stringify(content),
+              format: format || 'pdf',
+              organizationId: ORG_ID,
+            },
+          });
+        }
+      } catch (persistError) {
+        // Persistence failure should not block the response
+        console.error('Error persisting report:', persistError);
+      }
     }
 
     return NextResponse.json({ content, title, type, format });

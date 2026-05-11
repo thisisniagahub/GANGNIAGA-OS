@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
 import { db } from '@/lib/db';
 import { getZAI } from '@/lib/zai';
 
@@ -16,13 +17,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get existing skills for context
-    const existingSkills = await db.skill.findMany({
-      where: { organizationId: ORG_ID, status: 'active' },
-      select: { name: true, slug: true, category: true, description: true },
-    });
+    // ── Get existing skills for context ──
+    let existingSkills: { name: string; slug: string; category: string; description: string }[] = [];
 
-    // Use z-ai-web-dev-sdk to analyze the conversation
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabaseServer();
+      const { data, error } = await supabase
+        .from('skills')
+        .select('name, slug, category, description')
+        .eq('organization_id', ORG_ID)
+        .eq('status', 'active');
+
+      if (error) throw error;
+      existingSkills = (data || []) as { name: string; slug: string; category: string; description: string }[];
+    } else if (db) {
+      existingSkills = await db.skill.findMany({
+        where: { organizationId: ORG_ID, status: 'active' },
+        select: { name: true, slug: true, category: true, description: true },
+      });
+    }
+
+    // ── Use z-ai-web-dev-sdk to analyze the conversation ──
     const zai = await getZAI();
 
     const conversationText = messages
@@ -107,26 +122,56 @@ Only suggest items that are genuinely valuable. Quality over quantity. If nothin
       });
     }
 
-    // Optionally auto-create memories if they have high importance
+    // ── Optionally auto-create memories if they have high importance ──
     if (analysis.memoryExtractions && Array.isArray(analysis.memoryExtractions)) {
       for (const mem of analysis.memoryExtractions) {
         if (mem.importance >= 7 && mem.key && mem.content) {
-          // Check if a memory with this key already exists
-          const existing = await db.agentMemoryV2.findFirst({
-            where: { key: mem.key, organizationId: ORG_ID },
-          });
-          if (!existing) {
-            await db.agentMemoryV2.create({
-              data: {
-                type: mem.type || 'memory',
-                key: mem.key,
-                content: mem.content.substring(0, 500),
-                importance: Math.min(10, Math.max(1, mem.importance)),
-                charLimit: 500,
-                sessionId: sessionId || null,
-                organizationId: ORG_ID,
-              },
+          if (isSupabaseConfigured()) {
+            const supabase = getSupabaseServer();
+
+            // Check if a memory with this key already exists
+            const { data: existing } = await supabase
+              .from('agent_memory_v2')
+              .select('id')
+              .eq('key', mem.key)
+              .eq('organization_id', ORG_ID)
+              .maybeSingle();
+
+            if (!existing) {
+              const { error: insertError } = await supabase
+                .from('agent_memory_v2')
+                .insert({
+                  type: mem.type || 'memory',
+                  key: mem.key,
+                  content: mem.content.substring(0, 500),
+                  importance: Math.min(10, Math.max(1, mem.importance)),
+                  char_limit: 500,
+                  session_id: sessionId || null,
+                  organization_id: ORG_ID,
+                });
+
+              if (insertError) {
+                console.error('Error auto-creating memory in Supabase:', insertError);
+              }
+            }
+          } else if (db) {
+            // Check if a memory with this key already exists
+            const existing = await db.agentMemoryV2.findFirst({
+              where: { key: mem.key, organizationId: ORG_ID },
             });
+            if (!existing) {
+              await db.agentMemoryV2.create({
+                data: {
+                  type: mem.type || 'memory',
+                  key: mem.key,
+                  content: mem.content.substring(0, 500),
+                  importance: Math.min(10, Math.max(1, mem.importance)),
+                  charLimit: 500,
+                  sessionId: sessionId || null,
+                  organizationId: ORG_ID,
+                },
+              });
+            }
           }
         }
       }

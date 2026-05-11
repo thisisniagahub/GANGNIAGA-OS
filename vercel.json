@@ -4,5 +4,8 @@
   "regions": ["sin1"],
   "git": {
     "deploymentEnabled": true
-  }
+  },
+  "buildCommand": "prisma generate && next build",
+  "installCommand": "bun install",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD"
 }

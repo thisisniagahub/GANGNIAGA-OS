@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { getZAI } from '@/lib/zai';
+
+const ORG_ID = 'org1';
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, problem, solution, targetMarket, revenueModel, competitiveEdge, risks } = await request.json();
+    const { title, problem, solution, targetMarket, revenueModel, competitiveEdge, risks, canvasId, save } = await request.json();
 
     const zai = await getZAI();
 
@@ -77,6 +81,37 @@ Use realistic benchmark values for the ASEAN/Southeast Asian market context.`,
           benchmarkComparison: [],
         }
       });
+    }
+
+    // Optionally persist the validation result
+    if (save && canvasId) {
+      try {
+        if (isSupabaseConfigured()) {
+          const supabase = getSupabaseServer();
+
+          await supabase
+            .from('idea_canvases')
+            .update({
+              status: 'validated',
+              validation_score: validationResult.overallScore ?? 0,
+              validation_report: validationResult, // JSONB — store directly
+            })
+            .eq('id', canvasId)
+            .eq('organization_id', ORG_ID);
+        } else if (db) {
+          await db.ideaCanvas.update({
+            where: { id: canvasId },
+            data: {
+              status: 'validated',
+              validationScore: validationResult.overallScore ?? 0,
+              validationReport: JSON.stringify(validationResult),
+            },
+          });
+        }
+      } catch (persistError) {
+        // Persistence failure should not block the response
+        console.error('Error persisting idea canvas validation:', persistError);
+      }
     }
 
     return NextResponse.json({ validation: validationResult });

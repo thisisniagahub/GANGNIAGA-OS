@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { getZAI } from '@/lib/zai';
+
+const ORG_ID = 'org1';
 
 export async function POST(request: NextRequest) {
   try {
-    const { planId, lenderPersona } = await request.json();
+    const { planId, lenderPersona, save } = await request.json();
 
     if (!planId || !lenderPersona) {
       return NextResponse.json(
@@ -139,6 +143,48 @@ Be thorough but fair. Return only the JSON object, no additional text.`;
       fullReport: null,
       createdAt: new Date().toISOString(),
     };
+
+    // Optionally persist the review
+    if (save !== false) {
+      try {
+        if (isSupabaseConfigured()) {
+          const supabase = getSupabaseServer();
+
+          await supabase.from('plan_reviews').insert({
+            plan_id: planId,
+            status: 'completed',
+            lender_persona: lenderPersona,
+            narrative_score: review.narrativeScore,
+            financial_score: review.financialScore,
+            consistency_score: review.consistencyScore,
+            overall_score: review.overallScore,
+            discrepancies: review.discrepancies, // JSONB — store directly
+            recommendations: review.recommendations, // JSONB — store directly
+            full_report: null,
+            organization_id: ORG_ID,
+          });
+        } else if (db) {
+          await db.planReview.create({
+            data: {
+              planId,
+              status: 'completed',
+              lenderPersona,
+              narrativeScore: review.narrativeScore,
+              financialScore: review.financialScore,
+              consistencyScore: review.consistencyScore,
+              overallScore: review.overallScore,
+              discrepancies: JSON.stringify(review.discrepancies),
+              recommendations: JSON.stringify(review.recommendations),
+              fullReport: null,
+              organizationId: ORG_ID,
+            },
+          });
+        }
+      } catch (persistError) {
+        // Persistence failure should not block the response
+        console.error('Error persisting plan review:', persistError);
+      }
+    }
 
     return NextResponse.json({ review });
   } catch (error) {

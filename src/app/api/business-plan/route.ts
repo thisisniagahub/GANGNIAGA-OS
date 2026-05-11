@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { getZAI } from '@/lib/zai';
+
+const ORG_ID = 'org1';
 
 const PROPOSAL_TYPE_CONTEXT: Record<string, string> = {
   bank_loan: 'This is for a bank loan application. Emphasize: cash flow stability, DSCR (Debt Service Coverage Ratio), repayment capacity, collateral, financial prudence, and risk mitigation. Use conservative projections and highlight financial discipline.',
@@ -56,7 +60,7 @@ const SECTION_PROMPTS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, industry, section, proposalType } = await request.json();
+    const { title, industry, section, proposalType, planId } = await request.json();
 
     const zai = await getZAI();
 
@@ -81,6 +85,56 @@ export async function POST(request: NextRequest) {
 
     if (!content) {
       return NextResponse.json({ error: 'No content generated' }, { status: 500 });
+    }
+
+    // Optionally persist the generated section to the business plan
+    if (planId) {
+      try {
+        if (isSupabaseConfigured()) {
+          const supabase = getSupabaseServer();
+
+          // Map section key to column name (snake_case)
+          const sectionColumnMap: Record<string, string> = {
+            executiveSummary: 'executive_summary',
+            marketAnalysis: 'market_analysis',
+            swotAnalysis: 'swot_analysis',
+            competitorAnalysis: 'competitor_analysis',
+            financialPlan: 'financial_plan',
+            riskAnalysis: 'risk_analysis',
+            recommendations: 'recommendations',
+          };
+
+          const column = sectionColumnMap[section];
+          if (column) {
+            await supabase
+              .from('business_plans')
+              .update({ [column]: content })
+              .eq('id', planId)
+              .eq('organization_id', ORG_ID);
+          }
+        } else if (db) {
+          const sectionColumnMap: Record<string, string> = {
+            executiveSummary: 'executiveSummary',
+            marketAnalysis: 'marketAnalysis',
+            swotAnalysis: 'swotAnalysis',
+            competitorAnalysis: 'competitorAnalysis',
+            financialPlan: 'financialPlan',
+            riskAnalysis: 'riskAnalysis',
+            recommendations: 'recommendations',
+          };
+
+          const column = sectionColumnMap[section];
+          if (column) {
+            await db.businessPlan.update({
+              where: { id: planId },
+              data: { [column]: content },
+            });
+          }
+        }
+      } catch (persistError) {
+        // Persistence failure should not block the response
+        console.error('Error persisting business plan section:', persistError);
+      }
     }
 
     return NextResponse.json({ content });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
 import { db } from '@/lib/db';
 
 const ORGANIZATION_ID = 'org1';
@@ -53,22 +54,87 @@ function toResponse(row: {
   };
 }
 
+function toResponseFromJsonb(row: Record<string, unknown>): SoulConfigResponse {
+  let parsedRules: string[] = [];
+  const rules = row.rules;
+  if (Array.isArray(rules)) {
+    parsedRules = rules as string[];
+  } else if (typeof rules === 'string') {
+    try {
+      parsedRules = JSON.parse(rules);
+    } catch {
+      parsedRules = [];
+    }
+  }
+  return {
+    personality: row.personality as string,
+    tone: row.tone as string,
+    language: row.language as string,
+    specialty: row.specialty as string,
+    greeting: row.greeting as string,
+    rules: parsedRules,
+  };
+}
+
 export async function GET() {
   try {
-    let config = await db.openClawSoulConfig.findFirst({
-      where: { organizationId: ORGANIZATION_ID },
-    });
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabaseServer();
+      const { data, error } = await supabase
+        .from('openclaw_soul_configs')
+        .select('*')
+        .eq('organization_id', ORGANIZATION_ID)
+        .single();
 
-    if (!config) {
-      config = await db.openClawSoulConfig.create({
-        data: {
-          ...DEFAULT_SOUL,
-          organizationId: ORGANIZATION_ID,
-        },
+      if (error || !data) {
+        // No config exists yet — create default
+        const { data: newConfig, error: createError } = await supabase
+          .from('openclaw_soul_configs')
+          .insert({
+            personality: DEFAULT_SOUL.personality,
+            tone: DEFAULT_SOUL.tone,
+            language: DEFAULT_SOUL.language,
+            specialty: DEFAULT_SOUL.specialty,
+            greeting: DEFAULT_SOUL.greeting,
+            rules: DEFAULT_RULES, // JSONB — store directly as array
+            organization_id: ORGANIZATION_ID,
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Supabase error creating default soul config:', createError);
+          return NextResponse.json(
+            { error: 'Failed to create default SOUL config' },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json(toResponseFromJsonb(newConfig as Record<string, unknown>));
+      }
+
+      return NextResponse.json(toResponseFromJsonb(data as Record<string, unknown>));
+    } else if (db) {
+      let config = await db.openClawSoulConfig.findFirst({
+        where: { organizationId: ORGANIZATION_ID },
       });
+
+      if (!config) {
+        config = await db.openClawSoulConfig.create({
+          data: {
+            ...DEFAULT_SOUL,
+            organizationId: ORGANIZATION_ID,
+          },
+        });
+      }
+
+      return NextResponse.json(toResponse(config));
     }
 
-    return NextResponse.json(toResponse(config));
+    return NextResponse.json(
+      { error: 'No database configured' },
+      { status: 500 }
+    );
   } catch (error) {
     console.error('Failed to read SOUL config:', error);
     return NextResponse.json(
@@ -98,35 +164,100 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await db.openClawSoulConfig.findFirst({
-      where: { organizationId: ORGANIZATION_ID },
-    });
+    if (isSupabaseConfigured()) {
+      const supabase = getSupabaseServer();
 
-    const config = existing
-      ? await db.openClawSoulConfig.update({
-          where: { id: existing.id },
-          data: {
-            personality,
-            tone,
-            language,
-            specialty,
-            greeting,
-            rules: JSON.stringify(rules),
-          },
-        })
-      : await db.openClawSoulConfig.create({
-          data: {
-            personality,
-            tone,
-            language,
-            specialty,
-            greeting,
-            rules: JSON.stringify(rules),
-            organizationId: ORGANIZATION_ID,
-          },
-        });
+      // Check if config exists
+      const { data: existing, error: fetchError } = await supabase
+        .from('openclaw_soul_configs')
+        .select('id')
+        .eq('organization_id', ORGANIZATION_ID)
+        .single();
 
-    return NextResponse.json(toResponse(config));
+      const updatePayload = {
+        personality,
+        tone,
+        language,
+        specialty,
+        greeting,
+        rules, // JSONB — store directly as array
+      };
+
+      if (fetchError || !existing) {
+        // Create new config
+        const { data, error } = await supabase
+          .from('openclaw_soul_configs')
+          .insert({
+            ...updatePayload,
+            organization_id: ORGANIZATION_ID,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Supabase error creating soul config:', error);
+          return NextResponse.json(
+            { error: 'Failed to create SOUL config' },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json(toResponseFromJsonb(data as Record<string, unknown>));
+      }
+
+      // Update existing config
+      const { data, error } = await supabase
+        .from('openclaw_soul_configs')
+        .update(updatePayload)
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error updating soul config:', error);
+        return NextResponse.json(
+          { error: 'Failed to update SOUL config' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(toResponseFromJsonb(data as Record<string, unknown>));
+    } else if (db) {
+      const existing = await db.openClawSoulConfig.findFirst({
+        where: { organizationId: ORGANIZATION_ID },
+      });
+
+      const config = existing
+        ? await db.openClawSoulConfig.update({
+            where: { id: existing.id },
+            data: {
+              personality,
+              tone,
+              language,
+              specialty,
+              greeting,
+              rules: JSON.stringify(rules),
+            },
+          })
+        : await db.openClawSoulConfig.create({
+            data: {
+              personality,
+              tone,
+              language,
+              specialty,
+              greeting,
+              rules: JSON.stringify(rules),
+              organizationId: ORGANIZATION_ID,
+            },
+          });
+
+      return NextResponse.json(toResponse(config));
+    }
+
+    return NextResponse.json(
+      { error: 'No database configured' },
+      { status: 500 }
+    );
   } catch (error) {
     console.error('Failed to update SOUL config:', error);
     return NextResponse.json(

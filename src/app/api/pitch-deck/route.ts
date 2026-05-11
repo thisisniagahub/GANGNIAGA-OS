@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
+import { db } from '@/lib/db';
 import { getZAI } from '@/lib/zai';
+
+const ORG_ID = 'org1';
 
 const TEMPLATE_CONTEXT: Record<string, string> = {
   investor: 'This is a VC/angel investor pitch deck. Emphasize: massive market opportunity, growth velocity, scalability, technology moat, unit economics, team strength, and 10x return potential. Use bold projections and highlight the "why now" urgency.',
@@ -22,7 +26,7 @@ const SLIDE_TYPE_CONTEXT: Record<string, string> = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, templateType, planId, action, deckId } = body;
+    const { title, templateType, planId, action, deckId, save } = body;
     const zai = await getZAI();
 
     const templateContext = TEMPLATE_CONTEXT[templateType] || TEMPLATE_CONTEXT.investor;
@@ -103,28 +107,97 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No content generated' }, { status: 500 });
     }
 
+    let slides: unknown[] = [];
+    let anticipatedQuestions: unknown[] = [];
+
     try {
       const jsonMatch = content.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const slides = JSON.parse(jsonMatch[0]);
-        return NextResponse.json({ slides, anticipatedQuestions: [] });
+        slides = JSON.parse(jsonMatch[0]);
       }
     } catch {
-      // JSON parse failed, return default slides
+      // JSON parse failed, use default slides
     }
 
-    // Fallback: return default generated slides
-    const defaultSlides = [
-      { id: `gs-${Date.now()}-1`, order: 1, title: title || 'Your Company', type: 'title', content: 'Tagline / One-Liner\nFunding Round / Loan Request\nDate', linkedSection: 'coverPage', dataPoints: {} },
-      { id: `gs-${Date.now()}-2`, order: 2, title: 'The Problem', type: 'problem', content: 'What pain point exists?\nHow big is the problem?\nWho is affected and what does it cost them?', linkedSection: 'problemStatement', dataPoints: { 'Market affected': '70%', 'Annual cost': 'RM2.4B' } },
-      { id: `gs-${Date.now()}-3`, order: 3, title: 'Our Solution', type: 'solution', content: 'How does your product solve the problem?\nKey features and benefits\nWhy now?', linkedSection: 'solutionProduct', dataPoints: {} },
-      { id: `gs-${Date.now()}-4`, order: 4, title: 'Market Opportunity', type: 'market', content: 'TAM, SAM, SOM breakdown\nMarket trends and timing\nGrowth trajectory', linkedSection: 'marketAnalysis', dataPoints: { 'TAM': 'USD12.4B', 'SAM': 'USD3.8B', 'SOM': 'USD190M' } },
-      { id: `gs-${Date.now()}-5`, order: 5, title: 'Business Model', type: 'business_model', content: 'Revenue model\nPricing strategy\nUnit economics', linkedSection: 'businessModel', dataPoints: { 'LTV:CAC': '7.5:1', 'Gross Margin': '82%' } },
-      { id: `gs-${Date.now()}-6`, order: 6, title: 'Financial Projections', type: 'financials', content: '3-year revenue forecast\nKey financial metrics\nBreak-even timeline', linkedSection: 'financialForecast', dataPoints: { 'Year 1': 'RM8.9M', 'Year 2': 'RM22.4M', 'Year 3': 'RM56.2M' } },
-      { id: `gs-${Date.now()}-7`, order: 7, title: 'The Ask', type: 'ask', content: 'How much are you raising?\nUse of funds breakdown\nExpected outcomes and milestones', linkedSection: 'fundingRequirement', dataPoints: { 'Amount': 'RM2M', 'Tenure': '5 years' } },
-    ];
+    // Fallback: return default generated slides if parsing failed
+    if (slides.length === 0) {
+      slides = [
+        { id: `gs-${Date.now()}-1`, order: 1, title: title || 'Your Company', type: 'title', content: 'Tagline / One-Liner\nFunding Round / Loan Request\nDate', linkedSection: 'coverPage', dataPoints: {} },
+        { id: `gs-${Date.now()}-2`, order: 2, title: 'The Problem', type: 'problem', content: 'What pain point exists?\nHow big is the problem?\nWho is affected and what does it cost them?', linkedSection: 'problemStatement', dataPoints: { 'Market affected': '70%', 'Annual cost': 'RM2.4B' } },
+        { id: `gs-${Date.now()}-3`, order: 3, title: 'Our Solution', type: 'solution', content: 'How does your product solve the problem?\nKey features and benefits\nWhy now?', linkedSection: 'solutionProduct', dataPoints: {} },
+        { id: `gs-${Date.now()}-4`, order: 4, title: 'Market Opportunity', type: 'market', content: 'TAM, SAM, SOM breakdown\nMarket trends and timing\nGrowth trajectory', linkedSection: 'marketAnalysis', dataPoints: { 'TAM': 'USD12.4B', 'SAM': 'USD3.8B', 'SOM': 'USD190M' } },
+        { id: `gs-${Date.now()}-5`, order: 5, title: 'Business Model', type: 'business_model', content: 'Revenue model\nPricing strategy\nUnit economics', linkedSection: 'businessModel', dataPoints: { 'LTV:CAC': '7.5:1', 'Gross Margin': '82%' } },
+        { id: `gs-${Date.now()}-6`, order: 6, title: 'Financial Projections', type: 'financials', content: '3-year revenue forecast\nKey financial metrics\nBreak-even timeline', linkedSection: 'financialForecast', dataPoints: { 'Year 1': 'RM8.9M', 'Year 2': 'RM22.4M', 'Year 3': 'RM56.2M' } },
+        { id: `gs-${Date.now()}-7`, order: 7, title: 'The Ask', type: 'ask', content: 'How much are you raising?\nUse of funds breakdown\nExpected outcomes and milestones', linkedSection: 'fundingRequirement', dataPoints: { 'Amount': 'RM2M', 'Tenure': '5 years' } },
+      ];
+    }
 
-    return NextResponse.json({ slides: defaultSlides, anticipatedQuestions: [] });
+    // Optionally persist the pitch deck
+    if (save && title) {
+      try {
+        if (isSupabaseConfigured()) {
+          const supabase = getSupabaseServer();
+
+          if (deckId) {
+            // Update existing deck
+            await supabase
+              .from('pitch_decks')
+              .update({
+                status: 'completed',
+                slides: slides, // JSONB — store directly
+                slide_count: Array.isArray(slides) ? slides.length : 0,
+                anticipated_questions: anticipatedQuestions, // JSONB — store directly
+              })
+              .eq('id', deckId)
+              .eq('organization_id', ORG_ID);
+          } else {
+            // Create new deck
+            await supabase.from('pitch_decks').insert({
+              title,
+              status: 'completed',
+              plan_id: planId || null,
+              template_type: templateType || 'investor',
+              slides: slides, // JSONB — store directly
+              slide_count: Array.isArray(slides) ? slides.length : 0,
+              anticipated_questions: anticipatedQuestions, // JSONB — store directly
+              organization_id: ORG_ID,
+            });
+          }
+        } else if (db) {
+          if (deckId) {
+            // Update existing deck
+            await db.pitchDeck.update({
+              where: { id: deckId },
+              data: {
+                status: 'completed',
+                slides: JSON.stringify(slides),
+                slideCount: Array.isArray(slides) ? slides.length : 0,
+                anticipatedQuestions: JSON.stringify(anticipatedQuestions),
+              },
+            });
+          } else {
+            // Create new deck
+            await db.pitchDeck.create({
+              data: {
+                title,
+                status: 'completed',
+                planId: planId || null,
+                templateType: templateType || 'investor',
+                slides: JSON.stringify(slides),
+                slideCount: Array.isArray(slides) ? slides.length : 0,
+                anticipatedQuestions: JSON.stringify(anticipatedQuestions),
+                organizationId: ORG_ID,
+              },
+            });
+          }
+        }
+      } catch (persistError) {
+        // Persistence failure should not block the response
+        console.error('Error persisting pitch deck:', persistError);
+      }
+    }
+
+    return NextResponse.json({ slides, anticipatedQuestions });
   } catch (error) {
     console.error('Pitch deck generation error:', error);
     return NextResponse.json({ error: 'Failed to generate pitch deck' }, { status: 500 });
