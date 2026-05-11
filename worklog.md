@@ -1384,3 +1384,23 @@ Stage Summary:
 - All 41 API routes compiled and functional
 - Custom domain: puspa-beta.gangniaga.my
 - GitHub: https://github.com/thisisniagahub/GANGNIAGA-OS
+
+---
+Task ID: 11
+Agent: Main Orchestrator
+Task: Update OpenRouter API key and switch model to owl-alpha
+
+Work Log:
+- Updated OPENROUTER_API_KEY_1 with new key on Vercel
+- Changed OPENROUTER_MODEL from openai/gpt-4o-mini to openrouter/owl-alpha
+- Improved AI chat error logging (returns actual error message instead of generic)
+- Deployed to Vercel — all builds successful
+- Tested AI chat — owl-alpha working with GangNiaga AI SOUL.md personality
+- Tested Malay language — OWL Alpha responds in BM perfectly
+- Verified: https://puspa-beta.gangniaga.my
+
+Stage Summary:
+- OpenRouter model: openrouter/owl-alpha (FREE tier)
+- AI Chat fully functional on Vercel production
+- Malay/English bilingual responses working
+- Custom domain: https://puspa-beta.gangniaga.my
