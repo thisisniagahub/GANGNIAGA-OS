@@ -54,9 +54,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[/api/ai/chat] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate chat response';
+    const errorStatus = (error as any)?.status || 500;
     return NextResponse.json(
-      { error: 'Failed to generate chat response' },
-      { status: 500 }
+      { error: errorMessage },
+      { status: errorStatus }
     );
   }
 }
