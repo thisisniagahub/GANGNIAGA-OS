@@ -58,7 +58,13 @@ import {
   Building2,
   TrendingUp,
   Landmark,
+  LayoutTemplate,
+  Clock,
+  Users,
 } from 'lucide-react';
+
+// Templates
+import { pitchDeckTemplates, type PitchDeckTemplate } from '@/lib/templates/pitch-deck-templates';
 
 // ── Slide Type Config ────────────────────────────────────────────────
 
@@ -114,6 +120,16 @@ const DIFFICULTY_CONFIG: Record<AnticipatedQuestion['difficulty'], { label: stri
   medium: { label: 'Medium', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800' },
   hard: { label: 'Hard', className: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800' },
 };
+
+// ── Template Difficulty Config ────────────────────────────────────────
+
+const TEMPLATE_DIFFICULTY_CONFIG: Record<string, { label: string; className: string }> = {
+  beginner: { label: 'Beginner', className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' },
+  intermediate: { label: 'Intermediate', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800' },
+  advanced: { label: 'Advanced', className: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800' },
+};
+
+const PITCH_TEMPLATE_CATEGORIES = [...new Set(pitchDeckTemplates.map(t => t.category))];
 
 // ── Color Utility ────────────────────────────────────────────────────
 
@@ -661,6 +677,9 @@ export default function PitchDeckModule() {
   const [generating, setGenerating] = useState(false);
   const [regeneratingQuestions, setRegeneratingQuestions] = useState(false);
   const [activeTab, setActiveTab] = useState('slides');
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('all');
 
   const selectedDeckData = pitchDecks.find((d) => d.id === selectedDeck) ?? null;
 
@@ -693,6 +712,9 @@ export default function PitchDeckModule() {
     setNewPlanId('');
     setNewTemplateType('investor');
     setCurrentSlideIndex(0);
+    setUseTemplate(false);
+    setSelectedTemplateId(null);
+    setTemplateCategoryFilter('all');
   }, [newTitle, newPlanId, newTemplateType, pitchDecks, setSelectedDeck]);
 
   const handleDeleteDeck = useCallback(
@@ -888,7 +910,7 @@ export default function PitchDeckModule() {
                       New Deck
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-lg">
+                  <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-emerald-500" />
@@ -899,70 +921,241 @@ export default function PitchDeckModule() {
                       </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-2">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Deck Title</label>
-                        <Input
-                          placeholder="e.g. Series A Investor Pitch"
-                          value={newTitle}
-                          onChange={(e) => setNewTitle(e.target.value)}
-                        />
-                      </div>
+                    <ScrollArea className="flex-1 -mx-6 px-6">
+                      <div className="space-y-4 py-2">
+                        {/* Start from Template Toggle */}
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => {
+                              setUseTemplate(!useTemplate);
+                              if (useTemplate) {
+                                setSelectedTemplateId(null);
+                              }
+                            }}
+                            className={`flex items-center gap-2 rounded-lg border p-3 w-full text-left transition-all duration-200 ${
+                              useTemplate
+                                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+                                : 'border-border hover:border-muted-foreground/30'
+                            }`}
+                          >
+                            <LayoutTemplate className={`h-5 w-5 shrink-0 ${useTemplate ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`} />
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-sm font-medium ${useTemplate ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground'}`}>
+                                Start from Template
+                              </p>
+                              <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                                Choose from {pitchDeckTemplates.length} Malaysia-specific pitch deck templates with pre-built slides
+                              </p>
+                            </div>
+                            <div className={`h-5 w-9 rounded-full transition-colors flex items-center ${useTemplate ? 'bg-emerald-600 justify-end' : 'bg-muted justify-start'}`}>
+                              <div className="h-4 w-4 rounded-full bg-white shadow-sm mx-0.5 transition-transform" />
+                            </div>
+                          </button>
+                        </div>
 
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Link to Business Plan</label>
-                        <Select value={newPlanId} onValueChange={setNewPlanId}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a plan (optional)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {plans.map((plan) => (
-                              <SelectItem key={plan.id} value={plan.id}>
-                                {plan.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground">
-                          Linking a plan auto-syncs financial data to slides
-                        </p>
-                      </div>
+                        {/* Template Gallery */}
+                        <AnimatePresence>
+                          {useTemplate && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.25 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="space-y-3">
+                                {/* Category Filter */}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <button
+                                    onClick={() => setTemplateCategoryFilter('all')}
+                                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+                                      templateCategoryFilter === 'all'
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                                    }`}
+                                  >
+                                    All ({pitchDeckTemplates.length})
+                                  </button>
+                                  {PITCH_TEMPLATE_CATEGORIES.map(cat => {
+                                    const count = pitchDeckTemplates.filter(t => t.category === cat).length;
+                                    return (
+                                      <button
+                                        key={cat}
+                                        onClick={() => setTemplateCategoryFilter(cat)}
+                                        className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+                                          templateCategoryFilter === cat
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                                        }`}
+                                      >
+                                        {cat} ({count})
+                                      </button>
+                                    );
+                                  })}
+                                </div>
 
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Template Type</label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {(Object.entries(TEMPLATE_TYPE_CONFIG) as [TemplateType, TemplateTypeConfig][]).map(
-                            ([type, cfg]) => {
-                              const TIcon = cfg.icon;
-                              const tColors = colorClasses(cfg.color);
-                              const isSelected = newTemplateType === type;
-                              return (
-                                <button
-                                  key={type}
-                                  onClick={() => setNewTemplateType(type)}
-                                  className={cn(
-                                    'flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-all duration-200',
-                                    isSelected
-                                      ? cn(tColors.border, tColors.bgLight, 'ring-1 ring-current', tColors.text)
-                                      : 'border-border hover:border-muted-foreground/30'
-                                  )}
-                                >
-                                  <TIcon className={cn('h-5 w-5', isSelected ? tColors.text : 'text-muted-foreground')} />
-                                  <p className={cn('text-xs font-medium', isSelected ? tColors.text : 'text-foreground')}>
-                                    {cfg.label}
-                                  </p>
-                                  <p className="text-[9px] text-muted-foreground leading-tight line-clamp-2">
-                                    {cfg.description}
-                                  </p>
-                                </button>
-                              );
-                            }
+                                {/* Template Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                                  {pitchDeckTemplates
+                                    .filter(t => templateCategoryFilter === 'all' || t.category === templateCategoryFilter)
+                                    .map(template => {
+                                      const diffConfig = TEMPLATE_DIFFICULTY_CONFIG[template.difficulty];
+                                      const isSelected = selectedTemplateId === template.id;
+                                      const totalDuration = template.slides.reduce((acc, s) => {
+                                        const mins = parseInt(s.duration) || 0;
+                                        return acc + mins;
+                                      }, 0);
+                                      return (
+                                        <motion.button
+                                          key={template.id}
+                                          onClick={() => {
+                                            setSelectedTemplateId(isSelected ? null : template.id);
+                                            if (!isSelected) {
+                                              setNewTitle(template.name);
+                                            }
+                                          }}
+                                          className={`flex flex-col gap-2 rounded-lg border p-3 text-left transition-all duration-200 ${
+                                            isSelected
+                                              ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-400 dark:border-emerald-700 dark:bg-emerald-950/30 dark:ring-emerald-600'
+                                              : 'border-border hover:border-muted-foreground/30 hover:bg-muted/20'
+                                          }`}
+                                          whileHover={{ scale: 1.01 }}
+                                          whileTap={{ scale: 0.99 }}
+                                        >
+                                          <div className="flex items-start justify-between gap-2">
+                                            <p className={`text-xs font-semibold leading-tight ${isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground'}`}>
+                                              {template.name}
+                                            </p>
+                                            {isSelected && (
+                                              <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600"
+                                              >
+                                                <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                              </motion.div>
+                                            )}
+                                          </div>
+                                          <p className="text-[10px] text-muted-foreground leading-tight line-clamp-2">
+                                            {template.description}
+                                          </p>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5 border-muted-foreground/20 text-muted-foreground">
+                                              {template.category}
+                                            </Badge>
+                                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${diffConfig.className}`}>
+                                              {diffConfig.label}
+                                            </Badge>
+                                            <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                                              <Layers className="h-2.5 w-2.5" />
+                                              {template.slides.length} slides
+                                            </span>
+                                            <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                                              <Clock className="h-2.5 w-2.5" />
+                                              ~{totalDuration} min
+                                            </span>
+                                          </div>
+                                          {isSelected && (
+                                            <motion.div
+                                              initial={{ opacity: 0, height: 0 }}
+                                              animate={{ opacity: 1, height: 'auto' }}
+                                              className="border-t border-emerald-200 dark:border-emerald-800 pt-2 mt-1 space-y-2"
+                                            >
+                                              <div className="flex items-center gap-1.5">
+                                                <Users className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                                <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                                                  For: {template.targetAudience}
+                                                </span>
+                                              </div>
+                                              <div className="flex flex-wrap gap-1">
+                                                {template.slides.slice(0, 4).map((s, i) => (
+                                                  <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+                                                    {s.title}
+                                                  </span>
+                                                ))}
+                                                {template.slides.length > 4 && (
+                                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">
+                                                    +{template.slides.length - 4} more
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </motion.div>
+                                          )}
+                                        </motion.button>
+                                      );
+                                    })}
+                                </div>
+                              </div>
+                            </motion.div>
                           )}
+                        </AnimatePresence>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Deck Title</label>
+                          <Input
+                            placeholder="e.g. Series A Investor Pitch"
+                            value={newTitle}
+                            onChange={(e) => setNewTitle(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Link to Business Plan</label>
+                          <Select value={newPlanId} onValueChange={setNewPlanId}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select a plan (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {plans.map((plan) => (
+                                <SelectItem key={plan.id} value={plan.id}>
+                                  {plan.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-muted-foreground">
+                            Linking a plan auto-syncs financial data to slides
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Template Type</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {(Object.entries(TEMPLATE_TYPE_CONFIG) as [TemplateType, TemplateTypeConfig][]).map(
+                              ([type, cfg]) => {
+                                const TIcon = cfg.icon;
+                                const tColors = colorClasses(cfg.color);
+                                const isSelected = newTemplateType === type;
+                                return (
+                                  <button
+                                    key={type}
+                                    onClick={() => setNewTemplateType(type)}
+                                    className={cn(
+                                      'flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-all duration-200',
+                                      isSelected
+                                        ? cn(tColors.border, tColors.bgLight, 'ring-1 ring-current', tColors.text)
+                                        : 'border-border hover:border-muted-foreground/30'
+                                    )}
+                                  >
+                                    <TIcon className={cn('h-5 w-5', isSelected ? tColors.text : 'text-muted-foreground')} />
+                                    <p className={cn('text-xs font-medium', isSelected ? tColors.text : 'text-foreground')}>
+                                      {cfg.label}
+                                    </p>
+                                    <p className="text-[9px] text-muted-foreground leading-tight line-clamp-2">
+                                      {cfg.description}
+                                    </p>
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </ScrollArea>
 
-                    <DialogFooter className="gap-2 sm:gap-0">
+                    <DialogFooter className="gap-2 sm:gap-0 mt-2">
                       <DialogClose asChild>
                         <Button variant="outline" size="sm">
                           Cancel
@@ -975,7 +1168,7 @@ export default function PitchDeckModule() {
                         className={cn('gap-2', accentColors.bg, 'hover:opacity-90 text-white')}
                       >
                         <Sparkles className="h-3.5 w-3.5" />
-                        Create Deck
+                        {selectedTemplateId ? 'Create from Template' : 'Create Deck'}
                       </Button>
                     </DialogFooter>
                   </DialogContent>

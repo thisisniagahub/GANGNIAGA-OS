@@ -50,7 +50,12 @@ import {
   ChevronRight,
   BarChart3,
   Edit,
+  LayoutTemplate,
+  Clock,
 } from 'lucide-react';
+
+// Templates
+import { ideaCanvasTemplates, type IdeaCanvasTemplate } from '@/lib/templates/idea-canvas-templates';
 
 // ─── Color Palette (emerald, teal, amber, rose, cyan) ───────────────────────
 const COLORS = {
@@ -124,6 +129,15 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   high: { label: 'High Risk', color: COLORS.rose, bgClass: 'bg-rose-500/15', textClass: 'text-rose-600 dark:text-rose-400' },
   critical: { label: 'Critical Risk', color: '#dc2626', bgClass: 'bg-red-600/15', textClass: 'text-red-600 dark:text-red-400' },
 };
+
+// ─── Template Difficulty Config ────────────────────────────────────────────
+const TEMPLATE_DIFFICULTY_CONFIG: Record<string, { label: string; className: string }> = {
+  beginner: { label: 'Beginner', className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' },
+  intermediate: { label: 'Intermediate', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800' },
+  advanced: { label: 'Advanced', className: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800' },
+};
+
+const TEMPLATE_CATEGORIES = [...new Set(ideaCanvasTemplates.map(t => t.category))];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -371,6 +385,11 @@ export function IdeaCanvasModule() {
   const [editRisks, setEditRisks] = useState<string[]>([]);
   const [newRisk, setNewRisk] = useState('');
 
+  // Template state
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('all');
+
   // Get selected idea
   const activeIdea = useMemo(
     () => ideaCanvases.find((ic) => ic.id === selectedIdea) ?? null,
@@ -406,15 +425,42 @@ export function IdeaCanvasModule() {
   // Handle new idea creation
   const handleCreateIdea = () => {
     if (!newTitle.trim()) return;
+
+    // If template selected, pre-fill canvas from template sections
+    let problem = newProblem;
+    let solution = newSolution;
+    let targetMarket = newTargetMarket;
+    let revenueModel = newRevenueModel;
+    let competitiveEdge = newCompetitiveEdge;
+
+    if (useTemplate && selectedTemplateId) {
+      const template = ideaCanvasTemplates.find(t => t.id === selectedTemplateId);
+      if (template) {
+        const sections = template.sections;
+        // Map template sections to canvas fields
+        const keyPartners = sections.find(s => s.title === 'Key Partners');
+        const valueProps = sections.find(s => s.title === 'Value Propositions');
+        const segments = sections.find(s => s.title === 'Customer Segments');
+        const revenue = sections.find(s => s.title === 'Revenue Streams');
+        const activities = sections.find(s => s.title === 'Key Activities');
+
+        if (!problem && valueProps) problem = valueProps.prompts.join('. ');
+        if (!solution && activities) solution = activities.prompts.slice(0, 3).join('. ');
+        if (!targetMarket && segments) targetMarket = segments.prompts.join('. ');
+        if (!revenueModel && revenue) revenueModel = revenue.prompts.slice(0, 3).join('. ');
+        if (!competitiveEdge && valueProps) competitiveEdge = valueProps.prompts.slice(0, 2).join('. ');
+      }
+    }
+
     const newIdea: IdeaCanvasData = {
       id: Date.now().toString(),
       title: newTitle.trim(),
       status: 'draft',
-      problem: newProblem,
-      solution: newSolution,
-      targetMarket: newTargetMarket,
-      revenueModel: newRevenueModel,
-      competitiveEdge: newCompetitiveEdge,
+      problem,
+      solution,
+      targetMarket,
+      revenueModel,
+      competitiveEdge,
       risks: [],
       validationScore: 0,
       validationReport: null,
@@ -431,6 +477,9 @@ export function IdeaCanvasModule() {
     setNewTargetMarket('');
     setNewRevenueModel('');
     setNewCompetitiveEdge('');
+    setUseTemplate(false);
+    setSelectedTemplateId(null);
+    setTemplateCategoryFilter('all');
     toast.success('Idea canvas created');
   };
 
@@ -627,7 +676,7 @@ export function IdeaCanvasModule() {
                 New Idea
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Lightbulb className="size-4 text-emerald-600" />
@@ -638,15 +687,173 @@ export function IdeaCanvasModule() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Idea Title</label>
-                  <Input
-                    placeholder="e.g., AI-Powered Inventory Optimizer for SMEs"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                  />
-                </div>
+              <ScrollArea className="flex-1 -mx-6 px-6">
+                <div className="space-y-4">
+                  {/* Start from Template Toggle */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setUseTemplate(!useTemplate);
+                        if (useTemplate) {
+                          setSelectedTemplateId(null);
+                        }
+                      }}
+                      className={`flex items-center gap-2 rounded-lg border p-3 w-full text-left transition-all duration-200 ${
+                        useTemplate
+                          ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30'
+                          : 'border-border hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <LayoutTemplate className={`size-5 shrink-0 ${useTemplate ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-medium ${useTemplate ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground'}`}>
+                          Start from Template
+                        </p>
+                        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                          Choose from {ideaCanvasTemplates.length} Malaysia-specific business model canvas templates
+                        </p>
+                      </div>
+                      <div className={`h-5 w-9 rounded-full transition-colors flex items-center ${useTemplate ? 'bg-emerald-600 justify-end' : 'bg-muted justify-start'}`}>
+                        <div className="h-4 w-4 rounded-full bg-white shadow-sm mx-0.5 transition-transform" />
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Template Gallery */}
+                  <AnimatePresence>
+                    {useTemplate && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-3">
+                          {/* Category Filter */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => setTemplateCategoryFilter('all')}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+                                templateCategoryFilter === 'all'
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                              }`}
+                            >
+                              All ({ideaCanvasTemplates.length})
+                            </button>
+                            {TEMPLATE_CATEGORIES.map(cat => {
+                              const count = ideaCanvasTemplates.filter(t => t.category === cat).length;
+                              return (
+                                <button
+                                  key={cat}
+                                  onClick={() => setTemplateCategoryFilter(cat)}
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+                                    templateCategoryFilter === cat
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                                  }`}
+                                >
+                                  {cat} ({count})
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Template Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                            {ideaCanvasTemplates
+                              .filter(t => templateCategoryFilter === 'all' || t.category === templateCategoryFilter)
+                              .map(template => {
+                                const diffConfig = TEMPLATE_DIFFICULTY_CONFIG[template.difficulty];
+                                const isSelected = selectedTemplateId === template.id;
+                                return (
+                                  <motion.button
+                                    key={template.id}
+                                    onClick={() => {
+                                      setSelectedTemplateId(isSelected ? null : template.id);
+                                      if (!isSelected) {
+                                        setNewTitle(template.name);
+                                      }
+                                    }}
+                                    className={`flex flex-col gap-2 rounded-lg border p-3 text-left transition-all duration-200 ${
+                                      isSelected
+                                        ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-400 dark:border-emerald-700 dark:bg-emerald-950/30 dark:ring-emerald-600'
+                                        : 'border-border hover:border-muted-foreground/30 hover:bg-muted/20'
+                                    }`}
+                                    whileHover={{ scale: 1.01 }}
+                                    whileTap={{ scale: 0.99 }}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <p className={`text-xs font-semibold leading-tight ${isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground'}`}>
+                                        {template.name}
+                                      </p>
+                                      {isSelected && (
+                                        <motion.div
+                                          initial={{ scale: 0 }}
+                                          animate={{ scale: 1 }}
+                                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600"
+                                        >
+                                          <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                          </svg>
+                                        </motion.div>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground leading-tight line-clamp-2">
+                                      {template.description}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5 border-muted-foreground/20 text-muted-foreground">
+                                        {template.category}
+                                      </Badge>
+                                      <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${diffConfig.className}`}>
+                                        {diffConfig.label}
+                                      </Badge>
+                                      <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                                        {template.sections.length} sections
+                                      </span>
+                                    </div>
+                                    {isSelected && (
+                                      <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="border-t border-emerald-200 dark:border-emerald-800 pt-2 mt-1"
+                                      >
+                                        <p className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 mb-1.5">
+                                          9 Canvas Sections:
+                                        </p>
+                                        <div className="flex flex-wrap gap-1">
+                                          {template.sections.slice(0, 5).map((s, i) => (
+                                            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+                                              {s.title}
+                                            </span>
+                                          ))}
+                                          {template.sections.length > 5 && (
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">
+                                              +{template.sections.length - 5} more
+                                            </span>
+                                          )}
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </motion.button>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Idea Title</label>
+                    <Input
+                      placeholder="e.g., AI-Powered Inventory Optimizer for SMEs"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                    />
+                  </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -712,8 +919,9 @@ export function IdeaCanvasModule() {
                   />
                 </div>
               </div>
+              </ScrollArea>
 
-              <DialogFooter className="gap-2 sm:gap-0">
+              <DialogFooter className="gap-2 sm:gap-0 mt-2">
                 <DialogClose asChild>
                   <Button variant="outline" size="sm">
                     Cancel
@@ -726,7 +934,7 @@ export function IdeaCanvasModule() {
                   disabled={!newTitle.trim()}
                 >
                   <Lightbulb className="size-3.5" />
-                  Create Canvas
+                  {selectedTemplateId ? 'Create from Template' : 'Create Canvas'}
                 </Button>
               </DialogFooter>
             </DialogContent>
