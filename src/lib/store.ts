@@ -507,7 +507,7 @@ export const useAppStore = create<AppState>((set) => ({
       ],
       createdAt: '2024-01-15',
     },
-  ],
+  ] as PitchDeckData[],
   selectedDeck: null,
   setSelectedDeck: (id) => set({ selectedDeck: id }),
 
@@ -700,7 +700,7 @@ export const useAppStore = create<AppState>((set) => ({
       pairedAt: null,
       avatarUrl: null,
     },
-  ],
+  ] as OpenClawChannel[],
 
   openclawPlugins: [
     {
@@ -890,7 +890,7 @@ export const useAppStore = create<AppState>((set) => ({
       headers: { 'Content-Type': 'application/json' },
       createdAt: '2024-11-10T00:00:00Z',
     },
-  ],
+  ] as OpenClawWebhook[],
 
   openclawScheduledTasks: [
     {
@@ -913,7 +913,7 @@ export const useAppStore = create<AppState>((set) => ({
       status: 'active',
       agentId: '2',
       prompt: 'Compile weekly investor update with financial highlights and milestones',
-      channel: 'email',
+      channel: 'slack',
       lastRun: new Date(Date.now() - 604800000).toISOString(),
       nextRun: new Date(Date.now() + 172800000).toISOString(),
       runCount: 12,

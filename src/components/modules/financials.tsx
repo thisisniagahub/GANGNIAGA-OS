@@ -162,7 +162,7 @@ const cardVariants = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.08, duration: 0.4, ease: 'easeOut' },
+    transition: { delay: i * 0.08, duration: 0.4, ease: 'easeOut' as const },
   }),
 };
 
@@ -487,7 +487,7 @@ export default function FinancialsModule() {
     [revenueData]
   );
   const totalExpenses = useMemo(
-    () => expenseData.reduce((sum, d) => sum + d.value, 0),
+    () => expenseData.reduce((sum, d) => sum + (d.value ?? 0), 0),
     [expenseData]
   );
   const netProfit = totalRevenue - totalExpenses * 12;
@@ -551,7 +551,7 @@ export default function FinancialsModule() {
     name: d.name,
     value: d.value,
   }));
-  const totalExpenseValue = expenseData.reduce((s, d) => s + d.value, 0);
+  const totalExpenseValue = expenseData.reduce((s, d) => s + (d.value ?? 0), 0);
 
   // ─── Refresh animation ───
   const handleRefresh = () => {
@@ -830,7 +830,7 @@ export default function FinancialsModule() {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                       <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                       <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatCurrency(v)} />
-                      <Tooltip content={<CurrencyTooltip />} />
+                      <RechartsTooltip content={<CurrencyTooltip />} />
                       <Legend />
                       <Bar dataKey="revenue" name="Revenue" fill={COLORS.emerald} radius={[4, 4, 0, 0]} barSize={28} />
                       <Area
@@ -872,7 +872,7 @@ export default function FinancialsModule() {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                       <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                       <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatCurrency(v)} />
-                      <Tooltip content={<CurrencyTooltip />} />
+                      <RechartsTooltip content={<CurrencyTooltip />} />
                       <Legend />
                       <Area
                         type="monotone"
@@ -925,7 +925,7 @@ export default function FinancialsModule() {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                           <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                           <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatCurrency(v)} />
-                          <Tooltip content={<CurrencyTooltip />} />
+                          <RechartsTooltip content={<CurrencyTooltip />} />
                           <Legend />
                           <Area
                             type="monotone"
@@ -1154,7 +1154,7 @@ export default function FinancialsModule() {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                         <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                         <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => formatCurrency(v)} />
-                        <Tooltip content={<CurrencyTooltip />} />
+                        <RechartsTooltip content={<CurrencyTooltip />} />
                         <Legend />
                         <Line
                           type="monotone"
@@ -1201,7 +1201,7 @@ export default function FinancialsModule() {
                   </TableHeader>
                   <TableBody>
                     {expenseData.map((item, i) => {
-                      const pct = (item.value / totalExpenseValue) * 100;
+                      const pct = ((item.value ?? 0) / totalExpenseValue) * 100;
                       const trends = [3.2, -1.8, 5.4, 2.1, 8.6, -2.3];
                       const trend = trends[i] ?? 0;
                       return (
@@ -1216,7 +1216,7 @@ export default function FinancialsModule() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono">
-                            {formatCurrency(item.value)}
+                            {formatCurrency(item.value ?? 0)}
                           </TableCell>
                           <TableCell className="text-right font-mono">
                             {formatPercent(pct)}

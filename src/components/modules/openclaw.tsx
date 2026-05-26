@@ -13,6 +13,7 @@ import type {
   OpenClawSoulConfig,
   DelegateTier,
   PluginCapability,
+  OpenClawGateway,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -75,7 +76,6 @@ import {
   Trash2,
   Pencil,
   Pause,
-  Resume,
   Zap,
   Package,
   Store,
@@ -737,7 +737,7 @@ export default function OpenClawModule() {
         // Add/update channel in store
         const existing = openclawChannels.find(c => c.type === 'telegram');
         if (existing) {
-          updateOpenClawChannel(existing.id, { status: 'connected', config: { botToken: '••••••••', webhookUrl: (data as Record<string, unknown>).webhookUrl } });
+          updateOpenClawChannel(existing.id, { status: 'connected', config: { botToken: '••••••••', webhookUrl: ((data as Record<string, unknown>).webhookUrl as string) || '' } });
         } else {
           addOpenClawChannel({
             id: `ch_telegram_${Date.now()}`,
@@ -747,7 +747,7 @@ export default function OpenClawModule() {
             lastMessage: null,
             lastMessageAt: null,
             messageCount: 0,
-            config: { botToken: '••••••••', webhookUrl: (data as Record<string, unknown>).webhookUrl },
+            config: { botToken: '••••••••', webhookUrl: ((data as Record<string, unknown>).webhookUrl as string) || '' },
             pairedAt: new Date().toISOString(),
             avatarUrl: null,
           });
@@ -783,7 +783,7 @@ export default function OpenClawModule() {
         // Add/update channel in store
         const existing = openclawChannels.find(c => c.type === 'whatsapp');
         if (existing) {
-          updateOpenClawChannel(existing.id, { status: 'connected', config: { phoneNumberId: whatsappPhoneNumberId, webhookUrl: (data as Record<string, unknown>).webhookUrl } });
+          updateOpenClawChannel(existing.id, { status: 'connected', config: { phoneNumberId: whatsappPhoneNumberId, webhookUrl: ((data as Record<string, unknown>).webhookUrl as string) || '' } });
         } else {
           addOpenClawChannel({
             id: `ch_whatsapp_${Date.now()}`,
@@ -793,7 +793,7 @@ export default function OpenClawModule() {
             lastMessage: null,
             lastMessageAt: null,
             messageCount: 0,
-            config: { phoneNumberId: whatsappPhoneNumberId, webhookUrl: (data as Record<string, unknown>).webhookUrl },
+            config: { phoneNumberId: whatsappPhoneNumberId, webhookUrl: ((data as Record<string, unknown>).webhookUrl as string) || '' },
             pairedAt: new Date().toISOString(),
             avatarUrl: null,
           });

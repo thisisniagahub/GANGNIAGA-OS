@@ -260,10 +260,10 @@ async function createZAIProvider(): Promise<AIProvider> {
     chat: {
       completions: {
         create: async (body) => {
-          return instance.chat.completions.create(body) as Promise<ChatCompletionResponse>;
+          return instance.chat.completions.create(body as any) as Promise<ChatCompletionResponse>;
         },
         createVision: async (body) => {
-          return instance.chat.completions.createVision(body) as Promise<ChatCompletionResponse>;
+          return instance.chat.completions.createVision(body as any) as Promise<ChatCompletionResponse>;
         },
       },
     },
@@ -449,7 +449,7 @@ function createOpenAIProvider(): AIProvider {
       generations: {
         create: async (body) => {
           // Map size for DALL-E 3 (which only supports 1024x1024, 1024x1792, 1792x1024)
-          let openaiSize = body.size || '1024x1024';
+          let openaiSize: string = body.size || '1024x1024';
           if (openaiSize !== '1024x1024' && openaiSize !== '1024x1792' && openaiSize !== '1792x1024') {
             // Map custom sizes to closest DALL-E 3 size
             openaiSize = '1024x1024';

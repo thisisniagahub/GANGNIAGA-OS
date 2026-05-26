@@ -5,10 +5,10 @@ const nextConfig: NextConfig = {
   // output: "standalone",
 
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 
-  reactStrictMode: false,
+  reactStrictMode: true,
 
   // Production security headers
   async headers() {

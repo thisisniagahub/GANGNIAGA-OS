@@ -87,7 +87,13 @@ export async function POST(request: NextRequest) {
 
     const memType = type || 'memory';
     const memImportance = Math.min(10, Math.max(1, importance || 5));
-    const memCharLimit = charLimit || 500;
+    
+    // Hermes Bounded Limits: MEMORY.md limit is 2200 chars, USER.md limit is 1375 chars
+    const HERMES_MEMORY_LIMIT = 2200;
+    const HERMES_USER_PROFILE_LIMIT = 1375;
+    const maxLimitForType = memType === 'user_profile' ? HERMES_USER_PROFILE_LIMIT : HERMES_MEMORY_LIMIT;
+    
+    const memCharLimit = charLimit ? Math.min(charLimit, maxLimitForType) : maxLimitForType;
     const truncatedContent = content.substring(0, memCharLimit);
 
     if (isSupabaseConfigured()) {

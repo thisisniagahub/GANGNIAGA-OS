@@ -340,11 +340,11 @@ export async function getGatewayStatus(): Promise<{
 
     const isConfigured =
       ch.type === 'telegram'
-        ? !!(config as TelegramConfig).botToken
+        ? !!(config as any).botToken
         : !!(
-            (config as WhatsAppConfig).verifyToken &&
-            (config as WhatsAppConfig).phoneNumberId &&
-            (config as WhatsAppConfig).accessToken
+            (config as any).verifyToken &&
+            (config as any).phoneNumberId &&
+            (config as any).accessToken
           );
 
     return {
@@ -354,18 +354,18 @@ export async function getGatewayStatus(): Promise<{
       configured: isConfigured,
       messageCount: ch.messageCount,
       lastMessageAt: ch.lastMessageAt?.toISOString() ?? null,
-      webhookUrl: (config as TelegramConfig | WhatsAppConfig).webhookUrl,
+      webhookUrl: (config as any).webhookUrl,
       botName:
         ch.type === 'telegram'
-          ? (config as TelegramConfig).botName
+          ? (config as any).botName
           : undefined,
       phoneNumber:
         ch.type === 'whatsapp'
-          ? (config as WhatsAppConfig).phoneNumber
+          ? (config as any).phoneNumber
           : undefined,
       businessName:
         ch.type === 'whatsapp'
-          ? (config as WhatsAppConfig).businessName
+          ? (config as any).businessName
           : undefined,
     };
   });

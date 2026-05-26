@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
 import { db } from '@/lib/db';
+import { getLocalSkills, getLocalSkillBySlug } from '@/lib/skills-loader';
 
 const ORG_ID = 'org1';
 
@@ -27,8 +28,61 @@ function mapSkillFromSupabase(s: Record<string, unknown>) {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const slug = searchParams.get('slug');
+
+    // --- LEVEL 1: Retrieve Full Skill Detail by Slug ---
+    if (slug) {
+      // 1. Try local file registry first
+      const localSkill = await getLocalSkillBySlug(slug);
+      if (localSkill) {
+        return NextResponse.json({ skill: localSkill });
+      }
+
+      // 2. Try Database (Supabase / Prisma)
+      if (isSupabaseConfigured()) {
+        const supabase = getSupabaseServer();
+        const { data, error } = await supabase
+          .from('skills')
+          .select('*')
+          .eq('slug', slug)
+          .eq('organization_id', ORG_ID)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+          return NextResponse.json({ skill: mapSkillFromSupabase(data) });
+        }
+      } else if (db) {
+        const skill = await db.skill.findUnique({
+          where: { slug },
+        });
+
+        if (skill && skill.organizationId === ORG_ID) {
+          return NextResponse.json({
+            skill: {
+              ...skill,
+              tags: skill.tags ? JSON.parse(skill.tags) : [],
+            },
+          });
+        }
+      }
+
+      return NextResponse.json({ error: 'Skill not found' }, { status: 404 });
+    }
+
+    // --- LEVEL 0: Compile Complete Skills Metadata list ---
+    // 1. Load local filesystem skills (strip 'content' for Level 0 list view payload optimization)
+    const rawLocalSkills = await getLocalSkills();
+    const localSkills = rawLocalSkills.map(({ content, ...rest }) => ({
+      ...rest,
+      content: '', // Omitted for Level 0 list view
+    }));
+
+    // 2. Load database skills
+    let dbSkills: any[] = [];
     if (isSupabaseConfigured()) {
       const supabase = getSupabaseServer();
       const { data, error } = await supabase
@@ -39,25 +93,38 @@ export async function GET() {
         .order('name');
 
       if (error) throw error;
-
-      const skills = (data || []).map(mapSkillFromSupabase);
-      return NextResponse.json({ skills });
+      dbSkills = (data || []).map(mapSkillFromSupabase).map(({ content, ...rest }) => ({
+        ...rest,
+        content: '', // Omitted for Level 0
+      }));
     } else if (db) {
       const skills = await db.skill.findMany({
         where: { organizationId: ORG_ID },
         orderBy: [{ category: 'asc' }, { name: 'asc' }],
       });
 
-      // Parse JSON fields
-      const parsed = skills.map((skill) => ({
+      dbSkills = skills.map((skill) => ({
         ...skill,
         tags: skill.tags ? JSON.parse(skill.tags) : [],
+        content: '', // Omitted for Level 0
       }));
-
-      return NextResponse.json({ skills: parsed });
     }
 
-    return NextResponse.json({ skills: [] });
+    // 3. Combine list & deduplicate by slug (DB skills override/override local skills if conflict occurs)
+    const combinedMap = new Map<string, any>();
+    
+    // Add local skills first
+    for (const skill of localSkills) {
+      combinedMap.set(skill.slug, skill);
+    }
+    // Database skills override local ones
+    for (const skill of dbSkills) {
+      combinedMap.set(skill.slug, skill);
+    }
+
+    const finalSkills = Array.from(combinedMap.values());
+
+    return NextResponse.json({ skills: finalSkills });
   } catch (error) {
     console.error('Error listing skills:', error);
     return NextResponse.json({ error: 'Failed to list skills' }, { status: 500 });
@@ -109,7 +176,7 @@ export async function POST(request: NextRequest) {
           content,
           category: category || 'general',
           trigger_phrase: triggerPhrase || null,
-          tags: tags || null, // JSONB — store directly, no JSON.stringify
+          tags: tags || null,
           auto_learn: autoLearn ?? false,
           source: 'user_created',
           status: 'active',
