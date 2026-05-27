@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 // Tool definitions
 const TOOLS: Record<string, { description: string; params: string[] }> = {
@@ -107,20 +107,51 @@ export async function POST(request: NextRequest) {
       case 'search_code': {
         if (!p.query) return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
         try {
-          const result = execSync(
-            `rg -l "${p.query.replace(/"/g, '\\"')}" --type-add 'tsx:*.tsx' --type-add 'jsx:*.jsx' -t ts -t tsx -t js -t jsx -t css -t html -t json src/ 2>/dev/null || true`,
-            { cwd: process.cwd(), encoding: 'utf-8', timeout: 10000 }
-          );
+          let result = '';
+          try {
+            result = execFileSync(
+              'rg',
+              [
+                '-l',
+                p.query,
+                '--type-add', 'tsx:*.tsx',
+                '--type-add', 'jsx:*.jsx',
+                '-t', 'ts',
+                '-t', 'tsx',
+                '-t', 'js',
+                '-t', 'jsx',
+                '-t', 'css',
+                '-t', 'html',
+                '-t', 'json',
+                'src/'
+              ],
+              { cwd: process.cwd(), encoding: 'utf-8', timeout: 10000, stdio: ['pipe', 'pipe', 'ignore'] }
+            );
+          } catch (err: any) {
+            if (err.status === 1) {
+              result = '';
+            } else {
+              throw err;
+            }
+          }
           const files = result.trim().split('\n').filter(Boolean).slice(0, 30);
 
           // Get snippet for first few files
           const snippets: Record<string, string> = {};
           for (const file of files.slice(0, 5)) {
             try {
-              const snippetResult = execSync(
-                `rg "${p.query.replace(/"/g, '\\"')}" -C 2 --max-count 1 "${file}" 2>/dev/null || true`,
-                { cwd: process.cwd(), encoding: 'utf-8', timeout: 5000 }
-              );
+              let snippetResult = '';
+              try {
+                snippetResult = execFileSync(
+                  'rg',
+                  ['-C', '2', '--max-count', '1', p.query, file],
+                  { cwd: process.cwd(), encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'ignore'] }
+                );
+              } catch (err: any) {
+                if (err.status === 1) {
+                  snippetResult = '';
+                }
+              }
               snippets[file] = snippetResult.trim().slice(0, 500);
             } catch {
               snippets[file] = '';
@@ -135,9 +166,9 @@ export async function POST(request: NextRequest) {
 
       case 'git_status': {
         try {
-          const status = execSync('git status --short', { cwd: process.cwd(), encoding: 'utf-8', timeout: 10000 });
-          const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: process.cwd(), encoding: 'utf-8', timeout: 5000 }).trim();
-          return NextResponse.json({ success: true, status: status.trim(), branch });
+          const status = execFileSync('git', ['status', '--short'], { cwd: process.cwd(), encoding: 'utf-8', timeout: 10000 });
+          const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: process.cwd(), encoding: 'utf-8', timeout: 5000 }).trim();
+          return NextResponse.json({ success: true, status: status.toString().trim(), branch });
         } catch {
           return NextResponse.json({ error: 'Git not available' }, { status: 500 });
         }
@@ -146,10 +177,10 @@ export async function POST(request: NextRequest) {
       case 'git_log': {
         try {
           const count = parseInt(p.count || '10', 10);
-          const log = execSync(`git log --oneline -${Math.min(count, 50)}`, {
+          const log = execFileSync('git', ['log', '--oneline', `-${Math.min(count, 50)}`], {
             cwd: process.cwd(), encoding: 'utf-8', timeout: 10000,
           });
-          return NextResponse.json({ success: true, log: log.trim() });
+          return NextResponse.json({ success: true, log: log.toString().trim() });
         } catch {
           return NextResponse.json({ error: 'Git not available' }, { status: 500 });
         }

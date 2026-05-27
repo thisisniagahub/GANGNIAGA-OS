@@ -1167,12 +1167,12 @@ class OpenRouterAdapter {
   private currentIndex: number = 0;
 
   constructor() {
-    this.apiKeys = [
-      process.env.OPENROUTER_API_KEY_1,
-      process.env.OPENROUTER_API_KEY_2,
-      process.env.OPENROUTER_API_KEY_3,
-      process.env.OPENROUTER_API_KEY_4,
-    ].filter(Boolean);
+    this.apiKeys = Object.keys(process.env).filter((k) => k.startsWith('OPENROUTER_API_KEY_')).map((k) => process.env[k]).filter((k): k is string => !!k); //
+//    process.env.OPENROUTER_API_KEY_1,
+//    process.env.OPENROUTER_API_KEY_2,
+//    process.env.OPENROUTER_API_KEY_3,
+//    process.env.OPENROUTER_API_KEY_4,
+//    ].filter(Boolean);
   }
 
   getNextKey(): string {

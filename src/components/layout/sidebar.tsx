@@ -48,14 +48,17 @@ import {
   PlusCircle,
   FlaskConical,
   Radio,
+  Cpu,
   Bell,
   LogOut,
   User,
   Building2,
   CreditCard,
   X,
+  BookOpen,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ShinyText from '@/components/ui/shiny-text';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -99,18 +102,29 @@ const navGroups: NavGroup[] = [
     defaultOpen: true,
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, accent: 'text-emerald-500', shortcut: '⌘1' },
-      { id: 'business-plans', label: 'Business Plans', icon: FileText, accent: 'text-amber-500', shortcut: '⌘2' },
-      { id: 'financials', label: 'Financials', icon: LineChart, accent: 'text-teal-500', shortcut: '⌘3' },
-    ],
-  },
-  {
-    id: 'intelligence',
-    title: 'Intelligence',
-    defaultOpen: true,
-    items: [
-      { id: 'idea-canvas', label: 'Idea Canvas', icon: Lightbulb, accent: 'text-emerald-500', shortcut: '⌘4' },
-      { id: 'plan-review', label: 'Plan Review', icon: Scale, accent: 'text-emerald-500', shortcut: '⌘5' },
-      { id: 'research', label: 'Research Agent', icon: Search, accent: 'text-emerald-500', shortcut: '⌘6' },
+      {
+        id: 'business-plans',
+        label: 'Business Plans',
+        icon: FileText,
+        accent: 'text-amber-500',
+        shortcut: '⌘2',
+        children: [
+          { id: 'idea-canvas', label: 'Idea Canvas', icon: Lightbulb, accent: 'text-emerald-500' },
+          { id: 'plan-review', label: 'Plan Review', icon: Scale, accent: 'text-emerald-500' },
+          { id: 'pitch-deck', label: 'Pitch Deck', icon: Presentation, accent: 'text-teal-500' },
+        ]
+      },
+      {
+        id: 'financials',
+        label: 'Financials',
+        icon: LineChart,
+        accent: 'text-teal-500',
+        shortcut: '⌘3',
+        children: [
+          { id: 'plan-actuals', label: 'Plan vs Actuals', icon: GitCompareArrows, accent: 'text-cyan-500' },
+          { id: 'reports', label: 'Reports', icon: BarChart3, accent: 'text-emerald-500' },
+        ]
+      },
     ],
   },
   {
@@ -118,27 +132,35 @@ const navGroups: NavGroup[] = [
     title: 'Automation',
     defaultOpen: true,
     items: [
-      { id: 'agents', label: 'Agent Console', icon: Bot, accent: 'text-cyan-500', shortcut: '⌘7' },
-      { id: 'workflows', label: 'Workflows', icon: Workflow, accent: 'text-rose-500', shortcut: '⌘8' },
-      { id: 'memory', label: 'Memory Engine', icon: Brain, accent: 'text-amber-500', shortcut: '⌘9' },
+      {
+        id: 'agents',
+        label: 'Agent Console',
+        icon: Bot,
+        accent: 'text-cyan-500',
+        shortcut: '⌘7',
+        children: [
+          { id: 'research', label: 'Research Agent', icon: Search, accent: 'text-emerald-500' },
+          { id: 'workflows', label: 'Workflows', icon: Workflow, accent: 'text-rose-500' },
+          { id: 'memory', label: 'Memory Engine', icon: Brain, accent: 'text-amber-500' },
+        ]
+      },
     ],
   },
   {
     id: 'connectivity',
-    title: 'Connectivity',
+    title: 'Integrations',
     defaultOpen: false,
     items: [
-      { id: 'openclaw', label: 'OpenClaw Gateway', icon: Radio, accent: 'text-orange-500', shortcut: '⌘0' },
-    ],
-  },
-  {
-    id: 'output',
-    title: 'Output',
-    defaultOpen: false,
-    items: [
-      { id: 'pitch-deck', label: 'Pitch Deck', icon: Presentation, accent: 'text-teal-500' },
-      { id: 'reports', label: 'Reports', icon: BarChart3, accent: 'text-emerald-500' },
-      { id: 'plan-actuals', label: 'Plan vs Actuals', icon: GitCompareArrows, accent: 'text-cyan-500' },
+      {
+        id: 'openclaw',
+        label: 'Channel Connect',
+        icon: Radio,
+        accent: 'text-orange-500',
+        shortcut: '⌘0',
+        children: [
+          { id: 'mcp', label: 'MCP Servers', icon: Cpu, accent: 'text-indigo-500' }
+        ]
+      },
     ],
   },
   {
@@ -147,6 +169,7 @@ const navGroups: NavGroup[] = [
     defaultOpen: false,
     items: [
       { id: 'settings', label: 'Settings', icon: Settings, accent: 'text-muted-foreground' },
+      { id: 'docs' as any, label: 'Documentation', icon: BookOpen, accent: 'text-emerald-500', shortcut: '⌘?' },
     ],
   },
 ];
@@ -184,6 +207,9 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
     return initial;
   });
 
+  // ── Expanded Submenus (Parent items) State ──
+  const [expandedNavItems, setExpandedNavItems] = useState<Set<string>>(new Set());
+
   // ── Search State ──
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -204,6 +230,21 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
   // ── Collapsed State (mobile always expanded) ──
   const collapsed = isMobile ? false : sidebarCollapsed;
 
+  // ── Auto-expand parent item if activeModule is a child ──
+  useEffect(() => {
+    navGroups.forEach((group) => {
+      group.items.forEach((item) => {
+        if (item.children?.some((child) => child.id === activeModule)) {
+          setExpandedNavItems((prev) => {
+            const next = new Set(prev);
+            next.add(item.id);
+            return next;
+          });
+        }
+      });
+    });
+  }, [activeModule]);
+
   // ── Filter Navigation by Search ──
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return navGroups;
@@ -214,7 +255,8 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
         items: group.items.filter(
           (item) =>
             item.label.toLowerCase().includes(q) ||
-            item.id.toLowerCase().includes(q)
+            item.id.toLowerCase().includes(q) ||
+            item.children?.some((c) => c.label.toLowerCase().includes(q))
         ),
       }))
       .filter((group) => group.items.length > 0);
@@ -228,20 +270,33 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
     return expandedGroups;
   }, [searchQuery, filteredGroups, expandedGroups]);
 
-  // ── Flat list of visible nav items for keyboard navigation ──
+  // ── Flat list of visible nav items for keyboard navigation (includes expanded children) ──
   const flatItems = useMemo(() => {
-    const items: NavItem[] = [];
+    const items: (NavItem | NavChild)[] = [];
     filteredGroups.forEach((group) => {
       if (effectiveExpandedGroups.has(group.id)) {
-        group.items.forEach((item) => items.push(item));
+        group.items.forEach((item) => {
+          items.push(item);
+          const hasChildren = item.children && item.children.length > 0;
+          const isParentExpanded = expandedNavItems.has(item.id);
+          if (hasChildren && isParentExpanded && (!collapsed || isMobile)) {
+            item.children!.forEach((child) => {
+              items.push(child);
+            });
+          }
+        });
       }
     });
     return items;
-  }, [filteredGroups, effectiveExpandedGroups]);
+  }, [filteredGroups, effectiveExpandedGroups, expandedNavItems, collapsed, isMobile]);
 
   // ── Handlers ──
   const handleNavClick = useCallback(
     (id: ModuleId) => {
+      if ((id as string) === 'docs') {
+        window.open('/docs', '_blank');
+        return;
+      }
       setActiveModule(id);
       if (isMobile && onCloseMobile) onCloseMobile();
     },
@@ -363,21 +418,37 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
   );
 
   const renderNavItem = (item: NavItem, itemIndex: number) => {
-    const isActive = activeModule === item.id;
+    const hasChildren = item.children && item.children.length > 0;
+    const isParentExpanded = expandedNavItems.has(item.id);
+    const isChildActive = hasChildren && item.children!.some(child => child.id === activeModule);
+    const isActive = activeModule === item.id || isChildActive;
+
     const Icon = item.icon;
     const badge = badgeMap[item.id];
     const badgeColor = badgeColorMap[item.id] || 'bg-muted text-muted-foreground';
     const isFocused = flatItems.indexOf(item) === focusedIndex;
 
+    const handleNavItemClick = () => {
+      handleNavClick(item.id);
+      if (hasChildren) {
+        setExpandedNavItems((prev) => {
+          const next = new Set(prev);
+          if (next.has(item.id)) next.delete(item.id);
+          else next.add(item.id);
+          return next;
+        });
+      }
+    };
+
     const buttonContent = (
       <motion.button
-        onClick={() => handleNavClick(item.id)}
+        onClick={handleNavItemClick}
         data-nav-id={item.id}
         aria-label={item.label}
         aria-current={isActive ? 'page' : undefined}
         className={cn(
           'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 min-h-[40px]',
-          'group relative',
+          'group relative z-0 overflow-hidden',
           isActive
             ? 'bg-emerald-500/8 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
             : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
@@ -387,7 +458,16 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
         whileHover={{ x: 2 }}
         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       >
-        {/* Active indicator */}
+        {/* Active sliding background */}
+        {isActive && (
+          <motion.div
+            layoutId="activeBackground"
+            className="absolute inset-0 bg-emerald-500/5 dark:bg-emerald-500/8 rounded-lg -z-10"
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          />
+        )}
+
+        {/* Active vertical accent bar */}
         {isActive && (
           <motion.div
             layoutId={collapsed && !isMobile ? 'activeBarCollapsed' : 'activeBarExpanded'}
@@ -429,8 +509,19 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
           )}
         </AnimatePresence>
 
-        {/* Badge — expanded mode */}
-        {badge > 0 && !collapsed && (
+        {/* Chevron for parent items */}
+        {hasChildren && (!collapsed || isMobile) && (
+          <motion.div
+            animate={{ rotate: isParentExpanded ? 180 : 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="ml-auto"
+          >
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground/60 group-hover:text-foreground" />
+          </motion.div>
+        )}
+
+        {/* Badge — expanded mode (only show if no chevron is displayed) */}
+        {!hasChildren && badge > 0 && !collapsed && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -452,7 +543,7 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
         )}
 
         {/* Shortcut hint — expanded mode */}
-        {item.shortcut && !collapsed && !isMobile && !isActive && (
+        {!hasChildren && item.shortcut && !collapsed && !isMobile && !isActive && (
           <kbd className="pointer-events-none ml-auto text-[9px] font-mono text-muted-foreground/40 hidden lg:inline-flex">
             {item.shortcut}
           </kbd>
@@ -493,7 +584,85 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
       );
     }
 
-    return <div key={item.id}>{buttonContent}</div>;
+    // Render submenu child items
+    const renderSubmenu = () => {
+      if (!hasChildren || collapsed || (isMobile === false && collapsed)) return null;
+      return (
+        <Collapsible open={isParentExpanded} onOpenChange={() => {}}>
+          <CollapsibleContent forceMount>
+            <AnimatePresence initial={false}>
+              {isParentExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 280 }}
+                  className="overflow-hidden pl-7 pr-1 mt-1 space-y-0.5 border-l border-emerald-500/10 ml-[21px]"
+                >
+                  {item.children!.map((child) => {
+                    const isChildItemActive = activeModule === child.id;
+                    const ChildIcon = child.icon;
+                    const childBadge = badgeMap[child.id];
+                    const childBadgeColor = badgeColorMap[child.id] || 'bg-muted text-muted-foreground';
+                    const isChildFocused = flatItems.indexOf(child) === focusedIndex;
+
+                    return (
+                      <motion.button
+                        key={child.id}
+                        onClick={() => handleNavClick(child.id)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 min-h-[38px] relative group z-0',
+                          isChildItemActive
+                            ? 'bg-emerald-500/6 dark:bg-emerald-500/8 text-emerald-600 dark:text-emerald-400 font-semibold'
+                            : 'text-muted-foreground/80 hover:text-foreground hover:bg-accent/40',
+                          isChildFocused && !isChildItemActive && 'bg-accent/20 ring-1 ring-emerald-500/10'
+                        )}
+                        whileHover={{ x: 2 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      >
+                        {isChildItemActive && (
+                          <motion.div
+                            layoutId="activeSubmenuIndicator"
+                            className="absolute left-[-4px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-500"
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                          />
+                        )}
+                        {isChildItemActive && (
+                          <motion.div
+                            layoutId="activeSubmenuBackground"
+                            className="absolute inset-0 bg-emerald-500/4 dark:bg-emerald-500/6 rounded-lg -z-10"
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                          />
+                        )}
+                        <ChildIcon className={cn('h-3.5 w-3.5 shrink-0 transition-colors', isChildItemActive ? child.accent : 'text-muted-foreground/60 group-hover:text-foreground')} />
+                        <span className="truncate flex-1 text-left">{child.label}</span>
+                        {childBadge > 0 && (
+                          <span className={cn('text-[9px] font-bold px-1.5 py-0.2 rounded-full min-w-[16px] text-center ml-auto', childBadgeColor)}>
+                            {childBadge}
+                          </span>
+                        )}
+                        {child.shortcut && (
+                          <kbd className="pointer-events-none text-[9px] font-mono text-muted-foreground/30 hidden lg:inline-flex">
+                            {child.shortcut}
+                          </kbd>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </CollapsibleContent>
+        </Collapsible>
+      );
+    };
+
+    return (
+      <div key={item.id} className="flex flex-col">
+        {buttonContent}
+        {renderSubmenu()}
+      </div>
+    );
   };
 
   const renderNavGroup = (group: NavGroup, groupIdx: number) => {
@@ -661,7 +830,7 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
             : { type: 'spring', damping: 25, stiffness: 300 }
         }
         className={cn(
-          'bg-card/80 backdrop-blur-xl border-r border-border flex flex-col shrink-0 overflow-hidden',
+          'bg-card/80 dark:bg-[#06080e]/90 backdrop-blur-xl border-r border-border dark:border-emerald-500/10 flex flex-col shrink-0 overflow-hidden shadow-2xl shadow-black',
           isMobile ? 'h-full w-[280px] border-r-0' : 'h-screen relative z-40'
         )}
       >
@@ -684,7 +853,7 @@ export default function Sidebar({ isMobile = false, onCloseMobile }: SidebarProp
                 className="overflow-hidden"
               >
                 <h1 className="font-bold text-base tracking-tight whitespace-nowrap">
-                  GangNiaga
+                  <ShinyText text="GangNiaga" speed={5} />
                 </h1>
                 <p className="text-[10px] text-muted-foreground font-medium tracking-wider uppercase whitespace-nowrap">
                   AI OS

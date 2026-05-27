@@ -20,6 +20,14 @@
 
 ---
 
+
+### 🚀 Upgrades in v0.2.0
+* **Security:** Hardened Copilot shell tools from command injections.
+* **Performance:** Extracted 900+ lines of mock data out of store.ts to fixtures.
+* **Theme:** Advanced Cyber-Obsidian and Neon-Glassmorphism dark theme overrides.
+* **Database:** Integrated cascade deletes and foreign key indexes.
+* **Hermes client:** Added central class with connection retries and fallbacks.
+
 ## 📋 Overview
 
 **GangNiaga AI OS** is an autonomous, AI-powered business operating system designed specifically for small and medium enterprises (SMEs) in Southeast Asia. It replaces 7+ disconnected tools with a single intelligent platform that **plans, analyzes, validates, and executes** real business workflows — now with multi-channel AI gateway capabilities and 30+ built-in skills.
@@ -658,7 +666,7 @@ DATABASE_URL="file:./db/custom.db"
 # OpenAI (production)
 OPENAI_API_KEY="sk-..."
 
-# OpenRouter (Vercel deployment — up to 4 keys for round-robin)
+# OpenRouter (Vercel deployment — dynamic unlimited keys for round-robin)
 OPENROUTER_API_KEY_1="sk-or-..."
 OPENROUTER_API_KEY_2="sk-or-..."
 OPENROUTER_API_KEY_3="sk-or-..."
@@ -677,7 +685,7 @@ WHATSAPP_VERIFY_TOKEN="..."
 |---|---|---|
 | **Dev / Sandbox** | ZAI | z-ai-web-dev-sdk (auto-configured) |
 | **Production** | OpenAI | Direct API via `OPENAI_API_KEY` |
-| **Vercel** | OpenRouter | Round-robin across `OPENROUTER_API_KEY_1..4` |
+| **Vercel** | OpenRouter | Round-robin across all configured `OPENROUTER_API_KEY_n` keys |
 | **Fallback** | No-op | Returns empty responses when all providers fail |
 
 **Default model:** `openrouter/owl-alpha`

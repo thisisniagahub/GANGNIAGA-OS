@@ -39,6 +39,8 @@ model User {
   organization Organization? @relation(fields: [organizationId], references: [id])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  @@index([organizationId])
 }
 
 model Organization {
@@ -89,9 +91,11 @@ model BusinessPlan {
   riskAnalysis   String?
   recommendations String?
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model Forecast {
@@ -101,9 +105,11 @@ model Forecast {
   period         String
   data           String       // JSON string
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model AgentSession {
@@ -115,10 +121,12 @@ model AgentSession {
   lastActivity   DateTime?
   config         String?      // JSON string
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   tasks          AgentTask[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model AgentTask {
@@ -132,6 +140,8 @@ model AgentTask {
   duration    Int?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  @@index([sessionId])
 }
 
 model AgentMemory {
@@ -141,8 +151,10 @@ model AgentMemory {
   content        String
   embedding      String?
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
 }
 
 model WorkflowRun {
@@ -153,9 +165,11 @@ model WorkflowRun {
   triggerType    String       @default("manual")
   steps          String?      // JSON string
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model KPIData {
@@ -167,9 +181,11 @@ model KPIData {
   unit           String       @default("currency")
   period         String
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model Report {
@@ -180,9 +196,11 @@ model Report {
   content        String?      // JSON string
   format         String       @default("pdf")
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── NEW: Idea Canvas & Validation Engine ──
@@ -200,9 +218,11 @@ model IdeaCanvas {
   validationScore Float?      @default(0) // 0-100
   validationReport String?    // JSON
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── NEW: Plan Review Agent Results ──
@@ -220,9 +240,11 @@ model PlanReview {
   recommendations String?    // JSON array
   fullReport     String?     // JSON
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── NEW: Plan vs Actuals Tracking ──
@@ -237,9 +259,11 @@ model PlanActual {
   variancePercent Float?      @default(0)
   source         String       @default("manual") // manual, quickbooks, xero
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── NEW: Pitch Deck ──
@@ -254,9 +278,11 @@ model PitchDeck {
   slideCount     Int          @default(0)
   anticipatedQuestions String? // JSON array
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── NEW: Citations (Bank-Grade Research) ──
@@ -271,8 +297,10 @@ model Citation {
   dataPoint      String?      // what data was extracted
   verified       Boolean      @default(false)
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
 }
 
 // ── NEW: Integrations (QuickBooks/Xero) ──
@@ -285,9 +313,11 @@ model Integration {
   syncFrequency  String       @default("monthly") // daily, weekly, monthly
   config         String?      // JSON
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── OpenClaw Integration ──
@@ -304,9 +334,11 @@ model OpenClawChannel {
   pairedAt       DateTime?
   avatarUrl      String?
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model OpenClawGateway {
@@ -322,9 +354,11 @@ model OpenClawGateway {
   version          String?
   config           String?  // JSON object with authMode, logLevel, etc.
   organizationId   String
-  organization     Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model OpenClawPlugin {
@@ -340,9 +374,11 @@ model OpenClawPlugin {
   lastUpdated    DateTime?
   config         String?  // JSON object
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model OpenClawDelegate {
@@ -359,9 +395,11 @@ model OpenClawDelegate {
   tasksCompleted Int      @default(0)
   lastActivity   DateTime?
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model OpenClawWebhook {
@@ -376,9 +414,11 @@ model OpenClawWebhook {
   secret         String?
   headers        String?  // JSON object
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model OpenClawScheduledTask {
@@ -393,9 +433,11 @@ model OpenClawScheduledTask {
   nextRun        DateTime?
   runCount       Int      @default(0)
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 model OpenClawSoulConfig {
@@ -407,9 +449,11 @@ model OpenClawSoulConfig {
   greeting       String   @default("Hello! I'm your AI business assistant for GangNiaga. How can I help you grow your business today?")
   rules          String   @default("[]") // JSON array of strings
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── Gateway Messaging Conversations ──
@@ -424,8 +468,10 @@ model GatewayConversation {
   content        String   // Message content
   metadata       String?  // JSON: additional platform-specific data (message_id, raw payload, etc.)
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
+
+  @@index([organizationId])
 }
 
 // ── Hermes-Inspired: Skills System ──
@@ -446,9 +492,11 @@ model Skill {
   status         String   @default("active") // active, deprecated, draft
   autoLearn      Boolean  @default(false) // Can this skill auto-improve from conversations?
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── Hermes-Inspired: Persistent Memory ──
@@ -462,9 +510,11 @@ model AgentMemoryV2 {
   charLimit      Int      @default(500) // Max chars for this entry
   sessionId      String?  // Which session created this memory
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }
 
 // ── Hermes-Inspired: Chat Sessions ──
@@ -480,7 +530,9 @@ model ChatSession {
   skillsUsed     String?  // JSON array of skill IDs used
   status         String   @default("active") // active, ended, archived
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
 }

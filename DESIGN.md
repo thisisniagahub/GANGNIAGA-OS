@@ -1368,6 +1368,15 @@ const COLORS = {
 
 ---
 
+
+## 🎨 Cyber-Obsidian & Neon-Glassmorphism UI Upgrade (v0.2.0)
+
+We have introduced an advanced visual theme for high-end aesthetic appeal:
+* **Background:** Deeper Obsidian Space (`oklch(0.06 0.01 240)` in dark mode).
+* **Glassmorphism:** Semi-transparent frosted panels using `backdrop-filter: blur(14px)`.
+* **Hover Accent Spotlight:** Interactive glow transitions (`.glass-panel-hover`) that outline boundaries on hover.
+* **Agent Pulse Ripples:** Green and Indigo dynamic ripples (`.agent-pulse-active` & `.agent-pulse-thinking`) for real-time status indication.
+
 ## Appendix: File Structure
 
 ```

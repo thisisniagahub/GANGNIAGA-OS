@@ -18,6 +18,7 @@ import IdeaCanvasModule from '@/components/modules/idea-canvas';
 import PlanReviewModule from '@/components/modules/plan-review';
 import ResearchModule from '@/components/modules/research';
 import OpenClawModule from '@/components/modules/openclaw';
+import McpModule from '@/components/modules/mcp';
 import CommandPalette from '@/components/layout/command-palette';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -37,6 +38,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'pitch-deck': PitchDeckModule,
   'research': ResearchModule,
   'openclaw': OpenClawModule,
+  'mcp': McpModule,
 };
 
 export default function GangNiagaAIOS() {

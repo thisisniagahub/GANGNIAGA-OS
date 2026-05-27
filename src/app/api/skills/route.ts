@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isSupabaseConfigured, getSupabaseServer } from '@/lib/supabase';
 import { db } from '@/lib/db';
 import { getLocalSkills, getLocalSkillBySlug } from '@/lib/skills-loader';
+import fs from 'fs';
+import path from 'path';
 
 const ORG_ID = 'org1';
 
@@ -148,6 +150,32 @@ export async function POST(request: NextRequest) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
+
+    // Write physically to local skills directory
+    try {
+      const skillDir = path.join(process.cwd(), 'skills', slug);
+      if (!fs.existsSync(skillDir)) {
+        fs.mkdirSync(skillDir, { recursive: true });
+      }
+      const skillFilePath = path.join(skillDir, 'SKILL.md');
+      
+      const skillMarkdown = `---
+name: "${name.replace(/"/g, '\\"')}"
+description: "${description.replace(/"/g, '\\"')}"
+category: "${(category || 'general').replace(/"/g, '\\"')}"
+triggerPhrase: "${(triggerPhrase || '').replace(/"/g, '\\"')}"
+tags: ${JSON.stringify(tags || [])}
+---
+
+# ${name}
+
+${content}
+`;
+      fs.writeFileSync(skillFilePath, skillMarkdown, 'utf-8');
+      console.log(`Physically curated skill file at: ${skillFilePath}`);
+    } catch (e: any) {
+      console.error(`Failed to physically curate skill file: ${e.message}`);
+    }
 
     if (isSupabaseConfigured()) {
       const supabase = getSupabaseServer();

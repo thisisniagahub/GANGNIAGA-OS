@@ -1771,7 +1771,14 @@ model AgentMemoryV2 {
 | Add `BankConnection` model | Dedicated bank integration model |
 | Add FK constraint to `PlanReview.planId` | Enforce referential integrity |
 
-### v0.6.0 — Scale
+#
+## 🗄️ Database Performance & Cascade Optimizations (v0.2.0)
+
+We have hardened the database layer in the Prisma schema:
+* **Foreign Key Indexing:** Added indexes on all high-frequency querying columns (like `organizationId` and `sessionId`) to prevent database table scans.
+* **Cascading Deletes:** Added `onDelete: Cascade` rules on relations to the `Organization` parent model to ensure complete referential integrity.
+
+## v0.6.0 — Scale
 
 | Change | Description |
 |--------|-------------|

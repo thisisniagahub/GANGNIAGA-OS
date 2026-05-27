@@ -18,7 +18,7 @@
 ### Environment Variables
 ```env
 # Database (PRIMARY — Supabase PostgreSQL)
-NEXT_PUBLIC_SUPABASE_URL=https://psefokmrwtsftdberqtt.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 
@@ -28,8 +28,7 @@ DATABASE_URL="file:./db/custom.db"
 # AI — OpenRouter (PRIMARY for Vercel)
 OPENROUTER_API_KEY_1=sk-or-v1-...
 OPENROUTER_API_KEY_2=  # Optional, for round-robin
-OPENROUTER_API_KEY_3=  # Optional
-OPENROUTER_API_KEY_4=  # Optional
+OPENROUTER_API_KEY_N=  # Dynamic, support any number of keys for round-robin
 OPENROUTER_MODEL=openrouter/owl-alpha
 OPENROUTER_APP_NAME=GangNiaga AI OS
 OPENROUTER_APP_URL=https://your-app.vercel.app
@@ -115,7 +114,7 @@ Vercel is the creator of Next.js and provides the most seamless deployment exper
 | **Vercel account** | Sign up at [vercel.com](https://vercel.com) — free tier works |
 | **Supabase project** | Already configured — PostgreSQL database is set up |
 
-> ✅ **Supabase PostgreSQL is ALREADY SET UP.** No need to create a new database. The project URL is `https://psefokmrwtsftdberqtt.supabase.co` with 27 tables and seed data.
+> ✅ **Supabase PostgreSQL is ALREADY SET UP.** No need to create a new database. The project URL is `https://your-project.supabase.co` with 27 tables and seed data.
 
 ---
 
@@ -150,7 +149,7 @@ Before clicking "Deploy", add all required environment variables in the Vercel p
 
 | Variable | Value | How to Get It |
 |----------|-------|---------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://psefokmrwtsftdberqtt.supabase.co` | Already configured in Supabase project |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://your-project.supabase.co` | Already configured in Supabase project |
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGci...` | Supabase Dashboard → Settings → API → service_role key |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGci...` | Supabase Dashboard → Settings → API → anon/public key |
 | `DATABASE_URL` | `file:./db/custom.db` | Keep as-is for Prisma client generation |
@@ -164,8 +163,7 @@ Before clicking "Deploy", add all required environment variables in the Vercel p
 |----------|---------|----------|
 | `OPENROUTER_API_KEY_1` | Primary OpenRouter key (PRIMARY AI provider for Vercel) | ✅ Yes |
 | `OPENROUTER_API_KEY_2` | Round-robin key #2 | No |
-| `OPENROUTER_API_KEY_3` | Round-robin key #3 | No |
-| `OPENROUTER_API_KEY_4` | Round-robin key #4 | No |
+| `OPENROUTER_API_KEY_N` | Dynamic round-robin keys (support unlimited keys, e.g., key 3, 4, etc.) | No |
 | `OPENROUTER_MODEL` | Model to use (default: `openrouter/owl-alpha`) | No |
 | `OPENROUTER_APP_NAME` | App name for OpenRouter (default: `GangNiaga AI OS`) | No |
 | `OPENROUTER_APP_URL` | Your app URL for OpenRouter ranking | No |
@@ -348,7 +346,7 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=file:./db/custom.db
-      - NEXT_PUBLIC_SUPABASE_URL=https://psefokmrwtsftdberqtt.supabase.co
+      - NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - OPENROUTER_API_KEY_1=${OPENROUTER_API_KEY_1}
@@ -464,7 +462,7 @@ bunx prisma studio
 ```
 
 ### Supabase PostgreSQL (Production)
-- **Project URL**: `https://psefokmrwtsftdberqtt.supabase.co`
+- **Project URL**: `https://your-project.supabase.co`
 - **Tables**: 27 tables with seed data
 - **Dual-client pattern**:
   - **Server-side**: `supabase-server.ts` — uses `SUPABASE_SERVICE_ROLE_KEY` (bypasses RLS)

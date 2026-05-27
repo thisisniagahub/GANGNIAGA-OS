@@ -13,7 +13,8 @@ export type ModuleId =
   | 'plan-actuals'
   | 'pitch-deck'
   | 'research'
-  | 'openclaw';
+  | 'openclaw'
+  | 'mcp';
 
 export type ProposalType = 
   | 'bank_loan' 

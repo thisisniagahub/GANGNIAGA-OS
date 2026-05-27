@@ -46,7 +46,7 @@ export async function getAIResponse(
 
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: 'assistant', content: soulPrompt },
+        { role: 'system', content: soulPrompt },
         ...history.slice(-8).map((h) => ({
           role: h.role as 'user' | 'assistant',
           content: h.content,

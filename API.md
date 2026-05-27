@@ -155,7 +155,7 @@ import { getAICompletion, getAIStatus } from '@/lib/ai-provider';
 
 // Provider detection priority:
 // 1. ZAI    — if ZAI_BASE_URL is set or running outside Vercel (dev environment)
-// 2. OpenRouter — if OPENROUTER_API_KEY_1 is set (supports up to 4 keys, round-robin)
+// 2. OpenRouter — if OPENROUTER_API_KEY_1 is set (supports dynamic unlimited keys, round-robin)
 // 3. OpenAI — if OPENAI_API_KEY is set
 // 4. No-op  — if no provider is configured
 
@@ -182,7 +182,7 @@ const status = await getAIStatus();
 | Web Search | ✓ | ⚠ (simulated) | ✗ |
 | Page Reader | ✓ | ⚠ (simulated) | ✗ |
 
-**OpenRouter round-robin:** If multiple `OPENROUTER_API_KEY_1` through `OPENROUTER_API_KEY_4` are set, requests are distributed across keys using a rotating index to balance load and avoid rate limits.
+**OpenRouter round-robin:** If multiple `OPENROUTER_API_KEY_1` through `OPENROUTER_API_KEY_n` are set, requests are dynamically distributed across all keys using a rotating index to balance load and avoid rate limits.
 
 **Default model:** `openrouter/owl-alpha`
 
@@ -2772,17 +2772,17 @@ All AI-powered routes use the multi-provider adapter from `src/lib/ai-provider.t
 #### OpenRouter Round-Robin Load Balancing
 
 ```typescript
-// Up to 4 API keys supported (OPENROUTER_API_KEY_1 through OPENROUTER_API_KEY_4)
+// Dynamic unlimited API keys supported (OPENROUTER_API_KEY_1 through OPENROUTER_API_KEY_N)
 // Requests are distributed using a rotating index:
 let currentKeyIndex = 0;
 
 function getNextKey(): string {
-  const keys = [
-    process.env.OPENROUTER_API_KEY_1,
-    process.env.OPENROUTER_API_KEY_2,
-    process.env.OPENROUTER_API_KEY_3,
-    process.env.OPENROUTER_API_KEY_4,
-  ].filter(Boolean);
+  const keys = Object.keys(process.env).filter((k) => k.startsWith('OPENROUTER_API_KEY_')).map((k) => process.env[k]).filter((k): k is string => !!k); //
+//    process.env.OPENROUTER_API_KEY_1,
+//    process.env.OPENROUTER_API_KEY_2,
+//    process.env.OPENROUTER_API_KEY_3,
+//    process.env.OPENROUTER_API_KEY_4,
+//  ].filter(Boolean);
 
   const key = keys[currentKeyIndex % keys.length];
   currentKeyIndex++;
@@ -2948,7 +2948,13 @@ All errors follow a consistent format:
 - **Database routes**: All database errors result in 500 responses with console logging.
 - **Provider failover**: The multi-provider adapter automatically attempts the next available provider if the primary fails. Only if all providers fail is a 500 returned.
 
-### Dual-Database Error Handling
+#
+## 🌐 API Routing Upgrades (v0.2.0)
+
+* **Unified Hermes Proxy:** Both `/api/chat` and `/api/openclaw/gateway` are now standardized under the new `HermesClient` singleton helper.
+* **Deduplication:** Merged duplicate routes to prevent code bloat and maintain cleaner endpoint endpoints.
+
+## Dual-Database Error Handling
 
 When Supabase is unreachable:
 

@@ -222,13 +222,11 @@ function detectProvider(): ProviderType {
   }
 
   // Check for OpenRouter API (OpenAI-compatible, commonly used on Vercel)
-  // Supports OPENROUTER_API_KEY_1 through OPENROUTER_API_KEY_4
-  const openrouterKeys = [
-    process.env.OPENROUTER_API_KEY_1,
-    process.env.OPENROUTER_API_KEY_2,
-    process.env.OPENROUTER_API_KEY_3,
-    process.env.OPENROUTER_API_KEY_4,
-  ].filter(Boolean);
+  // Supports dynamic number of OPENROUTER_API_KEY_n variables
+  const openrouterKeys = Object.keys(process.env)
+    .filter((k) => k.startsWith('OPENROUTER_API_KEY_'))
+    .map((k) => process.env[k])
+    .filter(Boolean);
 
   if (openrouterKeys.length > 0) {
     return 'openrouter';
@@ -634,8 +632,10 @@ function createOpenRouterProvider(): AIProvider {
   // Models use format: provider/model (e.g. "openai/gpt-5.2", "anthropic/claude-sonnet-4")
   const baseUrl = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
   // Use the first available OpenRouter API key (supports multiple for load balancing)
-  const apiKey = process.env.OPENROUTER_API_KEY_1 || process.env.OPENROUTER_API_KEY_2 ||
-    process.env.OPENROUTER_API_KEY_3 || process.env.OPENROUTER_API_KEY_4 || '';
+  const apiKey = Object.keys(process.env)
+    .filter((k) => k.startsWith('OPENROUTER_API_KEY_'))
+    .map((k) => process.env[k])
+    .find(Boolean) || '';
   const chatModel = process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001';
   const appName = process.env.OPENROUTER_APP_NAME || 'GangNiaga AI OS';
   const appUrl = process.env.OPENROUTER_APP_URL || 'https://gangniaga.ai';
@@ -643,12 +643,10 @@ function createOpenRouterProvider(): AIProvider {
   // Round-robin key selection for load balancing across multiple keys
   let keyIndex = 0;
   function getNextApiKey(): string {
-    const keys = [
-      process.env.OPENROUTER_API_KEY_1,
-      process.env.OPENROUTER_API_KEY_2,
-      process.env.OPENROUTER_API_KEY_3,
-      process.env.OPENROUTER_API_KEY_4,
-    ].filter((k): k is string => !!k);
+    const keys = Object.keys(process.env)
+      .filter((k) => k.startsWith('OPENROUTER_API_KEY_'))
+      .map((k) => process.env[k])
+      .filter((k): k is string => !!k);
 
     if (keys.length === 0) return '';
     const key = keys[keyIndex % keys.length];

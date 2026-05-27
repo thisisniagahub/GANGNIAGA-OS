@@ -29,7 +29,7 @@ const moduleTitles: Record<string, { title: string; subtitle: string }> = {
   'pitch-deck': { title: 'Pitch Deck', subtitle: 'Dynamic Deck Orchestrator' },
   research: { title: 'Research Agent', subtitle: 'Citation & Source Verification' },
   'plan-actuals': { title: 'Plan vs Actuals', subtitle: 'Variance Tracking System' },
-  openclaw: { title: 'OpenClaw Gateway', subtitle: 'Multi-Channel Integration' },
+  openclaw: { title: 'Channel Connect', subtitle: 'Multi-Channel Integration' },
 };
 
 export default function Header() {
