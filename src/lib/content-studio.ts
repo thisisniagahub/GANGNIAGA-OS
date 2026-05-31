@@ -1,5 +1,5 @@
-import { getAI } from '@/lib/ai-provider';
 import { hermes } from '@/lib/hermes';
+// NOTE: Hermes Agent only - NO OpenAI fallback per project requirements
 
 export interface ContentDraft {
   id: string;
@@ -48,17 +48,12 @@ export async function generateContentCampaign(
     { day, theme, hook, caption, script?, hashtags: [], best_time }
   `;
 
-  const ai = await getAI();
-  const response = await ai.chat.completions.create({
-    model: process.env.AI_MODEL || 'gpt-4o',
-    messages: [
-      { role: 'system', content: 'Output valid JSON only. No markdown, no explanations.' },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.7,
-  });
+  const response = await hermes.chatCompletion([
+    { role: 'system', content: 'Output valid JSON only. No markdown, no explanations.' },
+    { role: 'user', content: prompt }
+  ]);
 
-  let content = response.choices[0].message.content || '[]';
+  let content = response.choices?.[0]?.message?.content || response.response || '[]';
   content = content.replace(/```json\n?|\n?```/g, '').trim();
   
   const dailyPosts = JSON.parse(content);
@@ -104,16 +99,12 @@ export async function optimizeForShopee(content: ContentDraft, productInfo: { na
     Return optimized { hook, caption, shopee_keywords: [] }
   `;
 
-  const ai = await getAI();
-  const response = await ai.chat.completions.create({
-    model: process.env.AI_MODEL || 'gpt-4o',
-    messages: [
-      { role: 'system', content: 'Output valid JSON only.' },
-      { role: 'user', content: prompt }
-    ],
-  });
+  const response = await hermes.chatCompletion([
+    { role: 'system', content: 'Output valid JSON only.' },
+    { role: 'user', content: prompt }
+  ]);
 
-  let optimized = response.choices[0].message.content || '{}';
+  let optimized = response.choices?.[0]?.message?.content || response.response || '{}';
   optimized = optimized.replace(/```json\n?|\n?```/g, '').trim();
   const optimization = JSON.parse(optimized);
 
@@ -174,16 +165,12 @@ export async function generateViralHooks(topic: string, count: number = 5): Prom
     Output: JSON array of strings only.
   `;
 
-  const ai = await getAI();
-  const response = await ai.chat.completions.create({
-    model: process.env.AI_MODEL || 'gpt-4o',
-    messages: [
-      { role: 'system', content: 'Output valid JSON array of strings only.' },
-      { role: 'user', content: prompt }
-    ],
-  });
+  const response = await hermes.chatCompletion([
+    { role: 'system', content: 'Output valid JSON array of strings only.' },
+    { role: 'user', content: prompt }
+  ]);
 
-  let hooks = response.choices[0].message.content || '[]';
+  let hooks = response.choices?.[0]?.message?.content || response.response || '[]';
   hooks = hooks.replace(/```json\n?|\n?```/g, '').trim();
   return JSON.parse(hooks);
 }

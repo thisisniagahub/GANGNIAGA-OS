@@ -10,6 +10,18 @@ const nextConfig: NextConfig = {
 
   reactStrictMode: true,
 
+  // Fix Vercel build: Ignore MCP server imports (server-only CLI tools)
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.ignoreWarnings = [
+        ...(config.ignoreWarnings || []),
+        { module: /mcp-server\.ts$/ },
+        { module: /hermes\.ts$/ },
+      ];
+    }
+    return config;
+  },
+
   // Production security headers
   async headers() {
     return [

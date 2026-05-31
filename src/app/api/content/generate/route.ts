@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getAI } from '@/lib/ai-provider';
+import { hermes } from '@/lib/hermes';
 import { z } from 'zod';
+// NOTE: Hermes Agent only - NO OpenAI fallback
 
 const ContentSchema = z.object({
   platform: z.enum(['tiktok', 'instagram', 'facebook', 'shopee']),
@@ -37,18 +38,12 @@ export async function POST(request: Request) {
       Output format: JSON with { hook, caption, script?, hashtags, shopee_keywords? }
     `;
 
-    const ai = await getAI();
-    const response = await ai.chat.completions.create({
-      model: process.env.AI_MODEL || 'gpt-4o',
-      messages: [
-        { role: 'system', content: 'You are a content creation expert for ASEAN startups. Output valid JSON only.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.8,
-      max_tokens: 2000,
-    });
+    const response = await hermes.chatCompletion([
+      { role: 'system', content: 'You are a content creation expert for ASEAN startups. Output valid JSON only.' },
+      { role: 'user', content: prompt }
+    ]);
 
-    let content = response.choices[0].message.content || '{}';
+    let content = response.choices?.[0]?.message?.content || response.response || '{}';
     
     try {
       content = content.replace(/```json\n?|\n?```/g, '').trim();

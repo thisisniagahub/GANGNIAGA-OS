@@ -1,4 +1,5 @@
-import { getAI } from './ai-provider';
+// Hermes Agent Client - NO FALLBACK TO OPENAI
+// Uses direct HTTP to Hermes Agent API only
 
 export interface HermesMessage {
   role: 'system' | 'user' | 'assistant';
@@ -71,16 +72,16 @@ export class HermesClient {
   }
 
   private async fallbackCompletion(messages: HermesMessage[], model: string): Promise<any> {
-    try {
-      const ai = await getAI();
-      const response = await ai.chat.completions.create({
-        model: model,
-        messages: messages
-      });
-      return response;
-    } catch (error: any) {
-      throw new Error(`Fallback AI completion failed: ${error.message}`);
-    }
+    // NO OPENAI FALLBACK - Return error message instead
+    console.warn('Hermes Agent not reachable. No OpenAI fallback allowed.');
+    return {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '⚠️ Hermes Agent connection failed. Please ensure HERMES_API_URL is configured in Vercel environment variables. OpenAI fallback is disabled per project requirements.'
+        }
+      }]
+    };
   }
 }
 
